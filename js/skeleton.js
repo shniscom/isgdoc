@@ -32,25 +32,42 @@ async function dxFill(buf,D){const{z,doc,body,TBL,pub}=await dxLoad(buf),P=wq(bo
   rows.forEach(rw=>{const tr=pr.cloneNode(true);wk(tr,'tc').forEach((tc,ci)=>{const ps=wq(tc,'p');setP(ps[0],String(rw[ci]??''));ps.slice(1).forEach(x=>tc.removeChild(x))});tb.appendChild(tr)})});
  let x=new XMLSerializer().serializeToString(doc);if(!x.startsWith('<?xml'))x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+x;z.file('word/document.xml',x);return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'})}
 // ---------- EXCEL ----------
-const slave=c=>c.isMerged&&c.master&&c.master.address!=c.address;
+const slave=c=>c.isMerged&&c.master&&c.master.address!=c.address&&c.master.row==c.row; // yalnızca yatay birleşik hücre kalıntısı; dikey birleşik başlıklar gerçek başlıktır
 const cv=c=>{const v=c.value;return v&&v.richText?v.richText.map(x=>x.text).join(''):v&&typeof v=='object'&&v.result!==undefined?v.result:v&&v.text?v.text:v};
 function xlHdr(ws,risk){let best=0,row=0;for(let r=1;r<=Math.min(ws.rowCount,40);r++){let n=0;ws.getRow(r).eachCell(c=>{if(slave(c))return;const v=cv(c);if(typeof v=='string'&&v.trim()&&v.length<=40&&(!risk||hk(v)))n++});if(n>best){best=n;row=r}}return best>=(risk?2:3)?row:0}
 const xlSheet=(wb,risk)=>wb.worksheets.map(w=>({w,hr:xlHdr(w,risk)})).filter(x=>x.hr).sort((a,b)=>b.w.rowCount-a.w.rowCount)[0];
-const xlCols=(ws,hr,ovr={})=>{const cols=[];ws.getRow(hr).eachCell((c,n)=>{if(slave(c))return;const t=cv(c);if(t===null||t===undefined||t==='')return;const s=String(t).trim();cols.push({n,t:s,k:Object.prototype.hasOwnProperty.call(ovr,s)?ovr[s]:hk(s)})});return cols};
-async function xlAnalyze(buf){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const rs=xlSheet(wb,true),sh=rs||xlSheet(wb,false);if(!sh)return{kind:'xlsx',sheet:'',hr:0,hd:[],risk:false,method:''};const cols=xlCols(sh.w,sh.hr),ks=cols.map(c=>c.k);
- return{kind:'xlsx',sheet:sh.w.name,hr:sh.hr,hd:cols.map(c=>c.t),risk:!!rs,method:rs?(ks.includes('f')?'fk':ks.includes('o')&&ks.includes('s')?'mx':''):''}}
+const hdrLike=(ws,r)=>{let n=0;ws.getRow(r).eachCell(c=>{if(slave(c))return;const v=cv(c);if(typeof v=='string'&&hk(v))n++});return n>=2};
+// Sütunlar: iki seviyeli başlıkta boş alt başlık üst satırdan tamamlanır; tekrar eden anlamlar (ör. "önlem sonrası" grubu) ilk gruptan sonra "dup" sayılır
+const xlCols=(ws,hr,ovr={})=>{const up=hr>1&&hdrLike(ws,hr-1),cols=[],seen={},cn={},ho=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+ for(let n=1;n<=Math.min(ws.columnCount,80);n++){let c=ws.getCell(hr,n),t=slave(c)?null:cv(c);if((t===null||t===undefined||t==='')&&up){const u=ws.getCell(hr-1,n);t=slave(u)?null:cv(u)}
+  if(t===null||t===undefined||typeof t=='object')continue;const s=String(t).trim();if(!s)continue;let k=ho(ovr,s)?ovr[s]:hk(s),dup=false,tt=s;
+  if(k){if(seen[k]){cn[k]=(cn[k]||1)+1;tt=s+'#'+cn[k];k=ho(ovr,tt)?ovr[tt]:'';dup=true}else seen[k]=1}cols.push({n,t:tt,k,dup})}
+ return cols};
+// Tablo mantığı: skor sütunu çarpım formülüyse girdi sütunlarının Olasılık/Frekans/Şiddet olduğu, IF/arama formülü skora bağlıysa seviye sütunu olduğu çıkarılır
+function xlLogic(ws,cols,pr){const by={};cols.forEach(c=>by[c.n]=c);
+ cols.forEach(c=>{if(c.dup||(c.k&&c.k!='skor'))return;const f=ws.getCell(pr,c.n).formula;if(typeof f!='string'||!f.includes('*'))return;
+  const refs=[...f.matchAll(/\$?([A-Z]{1,3})\$?(\d+)/g)].filter(x=>+x[2]==pr).map(x=>ws.getColumn(x[1]).number);if(refs.length<2||refs.length>3||refs.includes(c.n))return;
+  c.k='skor';(refs.length==3?['o','f','s']:['o','s']).forEach((k,i)=>{const d=by[refs[i]];if(d&&!d.k&&!d.dup)d.k=k})});
+ const sc=cols.find(c=>c.k=='skor'&&!c.dup);if(sc){const L=ws.getColumn(sc.n).letter;cols.forEach(c=>{if(c.k||c.dup)return;const f=ws.getCell(pr,c.n).formula;if(typeof f=='string'&&/^(IF|IFS|VLOOKUP|LOOKUP|INDEX)/i.test(f)&&new RegExp('\\$?'+L+'\\$?'+pr+'(?!\\d)').test(f))c.k='lv'})}}
+const xlProto=(ws,hr,cols)=>{const hc=cols.find(c=>c.k=='h');for(let r=hr+1;r<=Math.min(ws.rowCount,hr+80);r++){const v=hc&&cv(ws.getCell(r,hc.n));if(typeof v=='string'&&v.length>=8&&!isNum(v))return r}return hr+1};
+async function xlWrite(wb){try{return await wb.xlsx.writeBuffer()}catch(e){wb.worksheets.forEach(w=>{try{w.dataValidations.model={}}catch(x){}w.conditionalFormattings=[];w.headerFooter={}});return await wb.xlsx.writeBuffer()}}
+let xlSt='';
+async function xlAnalyze(buf){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const rs=xlSheet(wb,true),sh=rs||xlSheet(wb,false);if(!sh)return{kind:'xlsx',sheet:'',hr:0,hd:[],risk:false,method:''};const cols=xlCols(sh.w,sh.hr);xlLogic(sh.w,cols,sh.hr+1);const ks=cols.map(c=>c.k);
+ return{kind:'xlsx',sheet:sh.w.name,hr:sh.hr,hd:cols.map(c=>c.t),cols:cols.map(c=>({t:c.t,k:c.k,dup:!!c.dup,f:typeof sh.w.getCell(sh.hr+1,c.n).formula=='string'})),risk:!!rs,method:rs?(ks.includes('f')?'fk':ks.includes('o')&&ks.includes('s')?'mx':''):''}}
 const tr1=(f,a,b)=>f.replace(/(\$?[A-Z]{1,3})(\$?)(\d+)/g,(x,c,d,n)=>d||+n!=a?x:c+b);
 // D: {firma,date,risk:{rows,method},grid}
-async function xlFill(buf,D){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const sh=(D.risk&&xlSheet(wb,true))||xlSheet(wb,false);if(!sh)throw new Error('Excel şablonunda başlık satırı bulunamadı');const ws=sh.w,F=D.firma||{},hr=sh.hr,cols=xlCols(ws,hr);
+async function xlFill(buf,D){try{return await xlFill0(buf,D)}catch(e){throw new Error('Excel doldurma hatası ['+xlSt+']: '+(e.message||e))}}
+async function xlFill0(buf,D){xlSt='şablon okuma';const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const sh=(D.risk&&xlSheet(wb,true))||xlSheet(wb,false);if(!sh)throw new Error('Excel şablonunda başlık satırı bulunamadı');const ws=sh.w,F=D.firma||{},hr=sh.hr,cols=xlCols(ws,hr);xlLogic(ws,cols,hr+1);xlSt='firma bilgileri';
  const isL=t=>{t=String(t||'').replace(/[:：_\s.]+$/,'').trim();return t.length>0&&t.length<=45&&LBL.some(([k,r])=>r.test(t))};
  for(let r=1;r<hr;r++)ws.getRow(r).eachCell((c,n)=>{const t=cv(c);if(typeof t!='string'||!isL(t))return;const x=lbl(t,F,D.date);
   for(let k=n+1;k<=n+8;k++){let y=ws.getCell(r,k);if(y.isMerged&&y.master&&y.master.address==c.address)continue;if(y.isMerged&&y.master)y=y.master;if(typeof cv(y)=='string'&&isL(cv(y)))break;y.value=x;break}});
  const rows=D.risk?D.risk.rows.map((r,i)=>cols.map(c=>riskCell(c.k,r,i,D.risk.method,c.t))):D.grid||[],P=hr+1,pc={};
  cols.forEach(c=>{const x=ws.getCell(P,c.n);pc[c.n]={st:JSON.parse(JSON.stringify(x.style||{})),f:x.formula}});
- rows.forEach((rw,i)=>{const R=P+i;ws.getRow(R).height=ws.getRow(P).height;cols.forEach((c,j)=>{const x=ws.getCell(R,c.n),p=pc[c.n];x.style=JSON.parse(JSON.stringify(p.st));x.value=p.f?{formula:tr1(p.f,P,R),result:rw[j]}:rw[j]})});
+ xlSt='satır yazma';rows.forEach((rw,i)=>{const R=P+i;ws.getRow(R).height=ws.getRow(P).height;cols.forEach((c,j)=>{const x=ws.getCell(R,c.n),p=pc[c.n],v=rw[j]===undefined||rw[j]===null?'':rw[j];x.style=JSON.parse(JSON.stringify(p.st));
+  if(typeof p.f=='string'&&p.f)x.value=c.dup&&v===''?null:{formula:tr1(p.f,P,R),result:v};else x.value=v})});
  for(let R=P+rows.length;R<=ws.rowCount;R++)cols.forEach(c=>{const x=ws.getCell(R,c.n);if(!x.formula&&!x.isMerged)x.value=null});
- if(D.risk){const o=wb.addWorksheet('Özet'),s=summ({rows:D.risk.rows,method:D.risk.method});o.addRow(['Alana göre dağılım','Adet']).font={bold:true};Object.entries(s.alan).forEach(a=>o.addRow(a));o.addRow([]);o.addRow(['Risk seviyesine göre dağılım','Adet']).font={bold:true};Object.entries(s.seviye).forEach(a=>o.addRow(a));o.getColumn(1).width=40}
- wb.calcProperties.fullCalcOnLoad=true;return new Blob([await wb.xlsx.writeBuffer()],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
+ xlSt='özet sayfası';if(D.risk){const o=wb.addWorksheet('Özet'),s=summ({rows:D.risk.rows,method:D.risk.method});o.addRow(['Alana göre dağılım','Adet']).font={bold:true};Object.entries(s.alan).forEach(a=>o.addRow(a));o.addRow([]);o.addRow(['Risk seviyesine göre dağılım','Adet']).font={bold:true};Object.entries(s.seviye).forEach(a=>o.addRow(a));o.getColumn(1).width=40}
+ xlSt='kaydetme';wb.calcProperties.fullCalcOnLoad=true;return new Blob([await xlWrite(wb)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
 // Hazır Excel risk şablonu (formüllü): skorlar Excel'de otomatik hesaplanır
 async function mkXlRisk(mt){const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Risk Analizi'),fk=mt=='fk';
  const H=['Sıra No','Alan / Bölüm','Tehlike','Risk',fk?'Olasılık (Ö)':'Olasılık (O)',...(fk?['Frekans (F)']:[]),'Şiddet (Ş)','Risk Skoru','Risk Seviyesi','Alınacak Önlemler'],n=H.length;
@@ -67,7 +84,7 @@ async function mkXlRisk(mt){const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('
 const num=v=>parseFloat(String(v).replace(',','.'))||0,isNum=v=>/^[\d.,\s]+$/.test(v);
 // ovr: {başlık metni: anlam}. Anlamı olmayan sütunlar (sorumlu, termin vb.) madde ile birlikte "x" içinde saklanır.
 async function xlRead(buf,ovr={}){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const out=[];let fk=false;
- wb.worksheets.forEach(ws=>{const hr=xlHdr(ws,true);if(!hr)return;const cols=xlCols(ws,hr,ovr);if(!cols.some(c=>c.k=='h'))return;if(cols.some(c=>c.k=='f'))fk=true;let sec='';
+ wb.worksheets.forEach(ws=>{const hr=xlHdr(ws,true);if(!hr)return;const cols=xlCols(ws,hr,ovr);xlLogic(ws,cols,xlProto(ws,hr,cols));if(!cols.some(c=>c.k=='h'))return;if(cols.some(c=>c.k=='f'))fk=true;let sec='';
   for(let r=hr+1;r<=ws.rowCount;r++){const o={a:'',x:{}},tx=[];cols.forEach(c=>{let v=cv(ws.getCell(r,c.n));if(v===null||v===undefined||v==='')return;if(typeof v=='object')v=v.text||v.result||'';v=String(v).trim();if(!v)return;tx.push(v);
     if(['o','f','s'].includes(c.k))o[c.k]=num(v);else if(['a','h','r','t'].includes(c.k))o[c.k]=v.slice(0,600);else if(!c.k)o.x[c.t]=v.slice(0,300)});
    // bölüm başlığı / özet / boş skorlu satırlar madde sayılmaz; bölüm başlığı sonraki satırların alanı olur
@@ -78,13 +95,12 @@ async function dxRead(buf,ovr={}){const{TBL}=await dxLoad(buf),out=[];let fk=fal
  TBL.forEach(t=>{const trs=wk(t,'tr'),tx=trs.map(r=>wk(r,'tc').map(c=>wq(c,'p').map(ptx).join(' ').trim())),hd=tx[0]||[],ks=hd.map(h=>Object.prototype.hasOwnProperty.call(ovr,h)?ovr[h]:hk(h));if(ks.filter(Boolean).length<3||!ks.includes('h'))return;if(ks.includes('f'))fk=true;
   tx.slice(1).forEach(rw=>{const o={a:'',x:{}};ks.forEach((k,i)=>{const v=rw[i];if(!v)return;if(['o','f','s'].includes(k))o[k]=num(v);else if(['a','h','r','t'].includes(k))o[k]=v.slice(0,600);else if(!k&&hd[i])o.x[hd[i]]=v.slice(0,300)});if(o.h&&!isNum(o.h)&&o.h.length>=6)out.push(o)})});
  return{rows:out,method:fk?'fk':'mx'}}
-async function xlProbe(buf){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const sh=xlSheet(wb,true);if(!sh)throw new Error('Risk tablosu başlığı bulunamadı (Tehlike, Risk, Önlem gibi başlıklar aranıyor).');const{w,hr}=sh,cols=xlCols(w,hr);
+async function xlProbe(buf){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const sh=xlSheet(wb,true);if(!sh)throw new Error('Risk tablosu başlığı bulunamadı (Tehlike, Risk, Önlem gibi başlıklar aranıyor).');const{w,hr}=sh,cols=xlCols(w,hr);xlLogic(w,cols,xlProto(w,hr,cols));
  cols.forEach(c=>{c.s=[];for(let r=hr+1;r<=Math.min(w.rowCount,hr+80)&&c.s.length<3;r++){let v=cv(w.getCell(r,c.n));if(v&&typeof v=='object')v=v.text||v.result;if(v!==null&&v!==undefined&&String(v).trim())c.s.push(String(v).trim().slice(0,40))}});
  return{sheet:w.name,sheets:wb.worksheets.filter(x=>xlHdr(x,true)).length,rows:w.rowCount-hr,cols}}
 async function dxProbe(buf){const{TBL}=await dxLoad(buf);for(const t of TBL){const trs=wk(t,'tr'),tx=trs.map(r=>wk(r,'tc').map(c=>wq(c,'p').map(ptx).join(' ').trim())),hd=tx[0]||[];if(hd.filter(h=>hk(h)).length>=3)return{sheet:'Word tablosu',sheets:1,rows:tx.length-1,cols:hd.map((h,i)=>({n:i,t:h,k:hk(h),s:tx.slice(1,40).map(r=>r[i]).filter(Boolean).slice(0,3).map(x=>x.slice(0,40))}))}}throw new Error('Word dosyasında risk tablosu bulunamadı.')}
 // Kütüphane dosyasından boş iskelet: başlıklar, biçimler, genişlikler, formüller kalır; veri satırları silinir
 async function xlSkeleton(buf){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const cand=wb.worksheets.map(w=>({w,hr:xlHdr(w,true)})).filter(x=>x.hr).sort((a,b)=>b.w.rowCount-a.w.rowCount);if(!cand.length)throw new Error('iskelet çıkarılamadı');
- const{w:ws,hr}=cand[0];cand.slice(1).forEach(x=>wb.removeWorksheet(x.w.id));const cols=xlCols(ws,hr),hc=cols.find(c=>c.k=='h');let pr=hr+1;
- for(let r=hr+1;r<=Math.min(ws.rowCount,hr+80);r++){const v=hc&&cv(ws.getCell(r,hc.n));if(typeof v=='string'&&v.length>=8&&!isNum(v)){pr=r;break}}
+ const{w:ws,hr}=cand[0];cand.slice(1).forEach(x=>wb.removeWorksheet(x.w.id));const cols=xlCols(ws,hr),pr=xlProto(ws,hr,cols);
  const st={},fm={};cols.forEach(c=>{const x=ws.getCell(pr,c.n);st[c.n]=JSON.parse(JSON.stringify(x.style||{}));fm[c.n]=x.formula});const ht=ws.getRow(pr).height;
- for(let r=hr+1;r<=ws.rowCount;r++){const rw=ws.getRow(r);rw.eachCell({includeEmpty:true},c=>{c.value=null;c.style={}});rw.height=undefined}cols.forEach(c=>{const x=ws.getCell(hr+1,c.n);x.style=st[c.n];if(fm[c.n])x.value={formula:tr1(fm[c.n],pr,hr+1)}});ws.getRow(hr+1).height=ht;return wb.xlsx.writeBuffer()}
+ for(let r=hr+1;r<=ws.rowCount;r++){const rw=ws.getRow(r);rw.eachCell({includeEmpty:true},c=>{c.value=null;c.style={}});rw.height=undefined}cols.forEach(c=>{const x=ws.getCell(hr+1,c.n);x.style=st[c.n];if(fm[c.n])x.value={formula:tr1(fm[c.n],pr,hr+1)}});ws.getRow(hr+1).height=ht;return xlWrite(wb)}
