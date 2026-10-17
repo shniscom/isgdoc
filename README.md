@@ -23,3 +23,6 @@ Kütüphane sekmesine yüklenen uzman risk analizleri (Excel/Word) kodla okunur,
 
 ### Sütun eşleştirme ve iskelet
 Kütüphane yüklemesinde önce "Dosyayı incele" ile sütunlar ve örnek değerleri gösterilir; anlamlar (Alan, Tehlike, Risk, Olasılık, Frekans, Şiddet, Önlem, Diğer) onaylanır/düzeltilir. Excel yüklemelerinde dosyanın boş iskeleti (başlıklar, biçim, formüller) Şablonlar listesine otomatik eklenir. Risk analizi hazırlarken yönteme (Fine-Kinney / 5×5) uygun iskelet otomatik seçilir; yoksa uyarı verilir.
+
+### Sihirbaz ve etiketler
+Yeni belge oluştururken adım adım sihirbaz çalışır (risk analizi: firma → kapsam → yöntem/şablon → madde sayısı → özet; diğer belgeler: firma → sorular → şablon → özet). İnşaat için aşama/iş kalemi etiketleri (kalıp, demir, iskele, elektrik…) kütüphaneye otomatik atanır; kalem başına benzersiz madde sayısı görünür. Etiketsizler isteğe bağlı yapay zekâyla sınıflanır.
