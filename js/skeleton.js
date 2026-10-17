@@ -8,7 +8,7 @@ const riskCell=(k,r,i,mt)=>({no:i+1,a:r.a,h:r.h,r:r.r,o:r.o,f:r.f,s:r.s,skor:sk(
 // ---------- WORD ----------
 async function dxLoad(buf){const z=await JSZip.loadAsync(buf),doc=new DOMParser().parseFromString(await z.file('word/document.xml').async('string'),'application/xml'),body=doc.getElementsByTagNameNS(W,'body')[0],TBL=wk(body,'tbl');
  const T=TBL.map((t,i)=>{const rows=wk(t,'tr'),tx=rows.map(r=>wk(r,'tc').map(c=>wq(c,'p').map(ptx).join(' ').trim())),hd=tx[0]||[],bd=tx.slice(1);
-  const list=rows.length>=2&&hd.length>=3&&hd.every(x=>x)&&bd.every(r=>!r[0]||/^\d+[.)]?$/.test(r[0]));let b=t.previousSibling;while(b&&!(b.localName=='p'&&ptx(b).trim()))b=b.previousSibling;
+  const rk=hd.filter(x=>hk(x)).length>=3&&hd.some(x=>/tehlike|risk/i.test(x)),list=rows.length>=2&&hd.length>=3&&((hd.every(x=>x)&&bd.every(r=>!r[0]||/^\d+[.)]?$/.test(r[0])))||rk);let b=t.previousSibling;while(b&&!(b.localName=='p'&&ptx(b).trim()))b=b.previousSibling;
   return{i,list,hd,n:bd.length,before:b?ptx(b).trim().slice(0,80):''}});
  const sl=[];wq(body,'p').forEach((p,k)=>{let ti=-1,r=-1,c=-1;const tc=p.parentNode.localName=='tc'?p.parentNode:null;
   if(tc){const tr=tc.parentNode,tl=tr.parentNode;ti=TBL.indexOf(tl);r=wk(tl,'tr').indexOf(tr);c=wk(tr,'tc').indexOf(tc);if(wq(tc,'p')[0]!==p)return}
@@ -58,3 +58,14 @@ async function mkXlRisk(mt){const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('
   ws.getCell(r,sc).value={formula:fk?`E${r}*F${r}*G${r}`:`E${r}*F${r}`};const v=`${L(sc)}${r}`;
   ws.getCell(r,sc+1).value={formula:fk?`IF(${v}>400,"Çok Yüksek",IF(${v}>200,"Yüksek",IF(${v}>70,"Önemli",IF(${v}>20,"Olası","Düşük"))))`:`IF(${v}>=15,"Çok Yüksek",IF(${v}>=10,"Yüksek",IF(${v}>=5,"Orta","Düşük")))`}}
  [7,18,34,34,11,...(fk?[11]:[]),11,11,14,50].forEach((w,i)=>ws.getColumn(i+1).width=w);ws.views=[{state:'frozen',ySplit:hr}];return wb.xlsx.writeBuffer()}
+
+// ---------- Kütüphane için okuma (yapay zekâsız) ----------
+const num=v=>parseFloat(String(v).replace(',','.'))||0;
+async function xlRead(buf){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const out=[];let fk=false;
+ wb.worksheets.forEach(ws=>{const hr=xlHdr(ws,true);if(!hr)return;const cols=[];ws.getRow(hr).eachCell((c,n)=>{if(slave(c))return;const t=cv(c),k=t&&hk(t);if(k)cols.push({n,k})});if(!cols.some(c=>c.k=='h'||c.k=='r'))return;if(cols.some(c=>c.k=='f'))fk=true;
+  for(let r=hr+1;r<=ws.rowCount;r++){const o={a:ws.name};let any=0;cols.forEach(c=>{let v=cv(ws.getCell(r,c.n));if(v===null||v===undefined||v==='')return;if(typeof v=='object')v=v.text||v.result||'';any=1;if(['o','f','s'].includes(c.k))o[c.k]=num(v);else if(['a','h','r','t'].includes(c.k))o[c.k]=String(v).trim().slice(0,600)});if(any&&(o.h||o.r))out.push(o)}});
+ return{rows:out,method:fk?'fk':'mx'}}
+async function dxRead(buf){const{TBL}=await dxLoad(buf),out=[];let fk=false;
+ TBL.forEach(t=>{const trs=wk(t,'tr'),tx=trs.map(r=>wk(r,'tc').map(c=>wq(c,'p').map(ptx).join(' ').trim())),ks=(tx[0]||[]).map(hk);if(ks.filter(Boolean).length<3||!ks.some(k=>k=='h'||k=='r'))return;if(ks.includes('f'))fk=true;
+  tx.slice(1).forEach(rw=>{const o={a:''};ks.forEach((k,i)=>{const v=rw[i];if(!k||!v)return;if(['o','f','s'].includes(k))o[k]=num(v);else if(['a','h','r','t'].includes(k))o[k]=v.slice(0,600)});if(o.h||o.r)out.push(o)})});
+ return{rows:out,method:fk?'fk':'mx'}}

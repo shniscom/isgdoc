@@ -17,3 +17,6 @@ Tarayıcıda çalışan, sunucusuz (statik) İSG evrak hazırlama sistemi. Veril
 
 ## Şablon mantığı
 Yüklenen .docx/.xlsx şablonun tabloları, başlıkları, sütun genişlikleri, renkleri ve Excel formülleri aynen korunur. Firma bilgileri etiketlere (Firma Adı, Adres, SGK…) yazılır; liste tabloları ve Excel veri satırları şablondaki son satırın biçimiyle çoğaltılır.
+
+## Kütüphane
+Kütüphane sekmesine yüklenen uzman risk analizleri (Excel/Word) kodla okunur, iş kolu etiketlenir, benzer maddeler birleştirilir. Risk analizi hazırlarken önce kütüphane maddeleri kullanılır; eksik kalan madde sayısı yapay zekâyla tamamlanır. Veriler tarayıcıda (IndexedDB) tutulur.
