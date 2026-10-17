@@ -20,3 +20,6 @@ Yüklenen .docx/.xlsx şablonun tabloları, başlıkları, sütun genişlikleri,
 
 ## Kütüphane
 Kütüphane sekmesine yüklenen uzman risk analizleri (Excel/Word) kodla okunur, iş kolu etiketlenir, benzer maddeler birleştirilir. Risk analizi hazırlarken önce kütüphane maddeleri kullanılır; eksik kalan madde sayısı yapay zekâyla tamamlanır. Veriler tarayıcıda (IndexedDB) tutulur.
+
+### Sütun eşleştirme ve iskelet
+Kütüphane yüklemesinde önce "Dosyayı incele" ile sütunlar ve örnek değerleri gösterilir; anlamlar (Alan, Tehlike, Risk, Olasılık, Frekans, Şiddet, Önlem, Diğer) onaylanır/düzeltilir. Excel yüklemelerinde dosyanın boş iskeleti (başlıklar, biçim, formüller) Şablonlar listesine otomatik eklenir. Risk analizi hazırlarken yönteme (Fine-Kinney / 5×5) uygun iskelet otomatik seçilir; yoksa uyarı verilir.

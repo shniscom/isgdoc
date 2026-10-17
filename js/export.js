@@ -14,12 +14,12 @@ function ekipTb(d){const out=[];EK.forEach((k,i)=>{const n=need(d,i),rows=teamRo
 const tplOf=d=>d.tpl&&TP.find(t=>t.id==d.tpl);
 async function indir(d){try{await indir0(d)}catch(x){alert('İndirme hatası: '+(x.message||x))}}
 async function indir0(d){const tt=TY[d.type][0],f=d.firma,nm=`${f.ad} - `,t=tplOf(d),ext=t&&t.kind=='xlsx'?'.xlsx':'.docx',base={firma:f,date:d.date};
- if(d.type=='risk'){const mt=d.method,rk={rows:d.rows,method:mt};await pack(nm+'Kapak',[cover(d,'Risk Değerlendirmesi')]);
-  if(t)await dlBlob(t.kind=='xlsx'?await xlFill(t.buf,{...base,risk:rk}):await dxFill(t.buf,{...base,risk:rk}),nm+'Risk Analizi'+ext);
+ if(d.type=='risk'){const mt=d.method,rk={rows:d.rows,method:mt};const og=d.out||{a:1,k:1,p:1};if(!og.a&&!og.k&&!og.p)throw new Error('İndirilecek dosya seçilmedi');if(og.k)await pack(nm+'Kapak',[cover(d,'Risk Değerlendirmesi')]);
+  if(!og.a){}else if(t)await dlBlob(t.kind=='xlsx'?await xlFill(t.buf,{...base,risk:rk}):await dxFill(t.buf,{...base,risk:rk}),nm+'Risk Analizi'+ext);
   else{const hd=mt=='fk'?['Sıra','Alan','Tehlike','Risk','Ö','F','Ş','Skor','Seviye','Önlemler']:['Sıra','Alan','Tehlike','Risk','O','Ş','Skor','Seviye','Önlemler'],s=summ(d),sm=q=>Object.entries(q),x=X();
    const rows=d.rows.map((r,i)=>(mt=='fk'?[i+1,r.a,r.h,r.r,r.o,r.f,r.s]:[i+1,r.a,r.h,r.r,r.o,r.s]).concat([sk(r,mt),lv(sk(r,mt),mt),r.t]));
    await pack(nm+'Risk Analizi',[[H1(`${f.ad} – RİSK ANALİZİ`),P(`Yöntem: ${mt=='fk'?'Fine-Kinney':'5×5 Matris'} | Toplam risk: ${d.rows.length}`),TB([hd,...rows]),P('Alanlara Göre Dağılım',{b:1,sp:300}),TB([['Alan','Adet'],...sm(s.alan)]),P('Risk Seviyesine Göre Dağılım',{b:1,sp:300}),TB([['Seviye','Adet'],...sm(s.seviye)]),P('Risk Değerlendirme Ekibi',{b:1,sp:300}),TB([['Ünvan','Adı Soyadı','İmza'],['İşveren / Vekili',f.isveren,''],['İSG Uzmanı',f.uzman,''],['İşyeri Hekimi',f.hekim,''],['Çalışan Temsilcisi','',''],['Destek Elemanı','',''],['Bilgi Sahibi Çalışan','','']])]])}
-  await pack(nm+'Risk Değerlendirme Prosedürü',[d.proc?bl(d.proc):[P('Prosedür henüz hazırlanmadı.')]]);return}
+  if(og.p)await pack(nm+'Risk Değerlendirme Prosedürü',[d.proc?bl(d.proc):[P('Prosedür henüz hazırlanmadı.')]]);return}
  if(t){const D={...base,fill:d.fill,teams:d.type=='acil'?(hd,b)=>teamRows(d,hd,b):null,grid:d.fill&&d.fill.grid};
   if(d.type=='acil')await pack(nm+'Kapak',[cover(d,tt)]);
   return dlBlob(t.kind=='xlsx'?await xlFill(t.buf,D):await dxFill(t.buf,D),nm+tt+ext)}

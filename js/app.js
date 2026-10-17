@@ -1,11 +1,11 @@
 // Arayüz
 const FD=[['ad','Firma adı'],['sgk','SGK sicil no'],['adres','İş yeri adresi'],['calisan','Çalışan sayısı','number'],['isveren','İşveren / vekili'],['uzman','İSG uzmanı'],['hekim','İşyeri hekimi']];
-const ctx=()=>`Firma: ${JSON.stringify(cur.firma)}; Tehlike sınıfı: ${TH[cur.firma.th]}; İş kolu: ${cur.sektor}.`;
+const ctx=()=>`Firma: ${JSON.stringify(cur.firma)}; Tehlike sınıfı: ${TH[cur.firma.th]}; İş kolu: ${cur.sektor}${(cur.lbls||[]).length?' (ek iş kolları/faaliyetler: '+cur.lbls.join(', ')+')':''}.`;
 function nav(){$('#nav').innerHTML='<h1>🦺 İSG Evrak Asistanı</h1>'+TABS.map(x=>`<button class="${x[0]==tab?'on':''}" onclick="go('${x[0]}')">${x[1]}</button>`).join('')+(cur&&cur.dirty?`<button class="dr" onclick="ed()">✏ Devam eden taslak<br><small>${e(TY[cur.type][0])}</small></button>`:'')}
 function go(t){tab=t;nav();({y:()=>menu('y'),a:()=>menu('a'),e:()=>menu('e'),k:kay,l:libView,t:tpl,s:set})[t]()}
 m.addEventListener('input',ev=>{if(cur&&!cur.dirty&&ev.target.closest('#ed')){cur.dirty=1;nav()}});
 function menu(g){m.innerHTML=`<h2>${TABS.find(x=>x[0]==g)[1]}</h2><div class="tiles">${Object.entries(TY).filter(x=>x[1][1]==g).map(x=>`<div class="tile" onclick="yeni('${x[0]}')"><b>${x[1][0]}</b></div>`).join('')}</div>`}
-function yeni(t){if(cur&&cur.dirty&&!confirm('Kaydedilmemiş taslak silinecek. Yeni belge başlatılsın mı?'))return;cur={id:uid(),type:t,firma:{th:1},sektor:'',method:'fk',tpl:'',rows:[],text:'',proc:'',ekip:{},date:new Date().toISOString(),n:25,alan:'',ek:'',fill:null,sk:null,dirty:0};ed()}
+function yeni(t){if(cur&&cur.dirty&&!confirm('Kaydedilmemiş taslak silinecek. Yeni belge başlatılsın mı?'))return;cur={id:uid(),type:t,firma:{th:1},sektor:'',method:'fk',tpl:'',rows:[],text:'',proc:'',ekip:{},date:new Date().toISOString(),n:25,alan:'',ek:'',fill:null,sk:null,dirty:0,out:{a:1,k:0,p:1},lbls:null,tplMiss:0};if(t=='risk')autoTpl(cur);ed()}
 function pickF(i){if(i==='')return;const f=S.c[i];cur.firma={...f};cur.sektor=f.sektor||cur.sektor;cur.dirty=1;ed()}
 function linkF(id){const d=S.d.find(x=>x.id==id);cur.link=id;if(d){cur.firma={...d.firma};cur.sektor=d.sektor;ed()}}
 function ed(){tab=TY[cur.type][1];nav();const c=cur,tl=TP.filter(x=>x.type==c.type);
@@ -14,19 +14,18 @@ function ed(){tab=TY[cur.type][1];nav();const c=cur,tl=TP.filter(x=>x.type==c.ty
  <div class="g">${FD.map(([k,l,ty])=>`<label>${l}<input ${ty?`type="${ty}"`:''} value="${e(c.firma[k])}" oninput="cur.firma.${k}=this.value"></label>`).join('')}
  <label>Tehlike sınıfı<select onchange="cur.firma.th=+this.value">${TH.map((x,i)=>`<option value="${i}" ${c.firma.th==i?'selected':''}>${x}</option>`).join('')}</select></label>
  <label>İş kolu / sektör<input list="sl" value="${e(c.sektor)}" oninput="cur.sektor=this.value"><datalist id="sl">${SEC.map(x=>`<option>${x}`).join('')}</datalist></label>
- <label>Şablon (biçim iskeleti)<select onchange="cur.tpl=this.value;cur.fill=null;res()"><option value="">Şablonsuz (standart düzen)</option>${tl.map(x=>`<option value="${x.id}" ${c.tpl==x.id?'selected':''}>${e(x.name)} (${x.kind=='xlsx'?'Excel':'Word'})</option>`).join('')}</select></label></div></div>
+ <label>Şablon (biçim iskeleti)<select onchange="selTpl(this.value)"><option value="">Şablonsuz (standart düzen)</option>${tl.map(x=>`<option value="${x.id}" ${c.tpl==x.id?'selected':''}>${e(x.name)} (${x.kind=='xlsx'?'Excel':'Word'}${x.method?', '+(x.method=='fk'?'Fine-Kinney':'5×5'):''})</option>`).join('')}</select></label></div></div>
  <div class="card" id="opt"></div><div id="res"></div></div>`;opt();res()}
 function opt(){const c=cur,t=c.type;let h='';
- if(t=='risk')h=`<h3>Risk analizi ayarları</h3><div class="g"><label>Yöntem<select id="mt" onchange="cur.method=this.value;if(cur.rows.length&&confirm('Yöntem değişti. Mevcut maddeler eski yöntemin değerleriyle hazırlandı; temizlensin mi?'))cur.rows=[];res()"><option value="fk" ${c.method=='fk'?'selected':''}>Fine-Kinney (Ö×F×Ş)</option><option value="mx" ${c.method=='mx'?'selected':''}>5×5 Risk Matrisi (O×Ş)</option></select></label>
-  <label>Hedef risk sayısı<input type="number" value="${c.n}" oninput="cur.n=+this.value"></label><label>Alanlar / bölümler (virgülle)<input value="${e(c.alan)}" placeholder="Ofis, Depo, Elektrik panosu…" oninput="cur.alan=this.value"></label>
-  <label>Kütüphane iş kolu (önce buradan alınır)<select id="lk"><option value="">Kütüphaneyi kullanma</option>${libLabels().map(([l,n])=>`<option value="${e(l)}" ${libBest(c.sektor)==l?'selected':''}>${e(l)} (${n} madde)</option>`).join('')}</select></label></div>
+ if(t=='risk')h=`<h3>Risk analizi ayarları</h3><div class="g"><label>Yöntem<select id="mt" onchange="cur.method=this.value;if(cur.rows.length&&confirm('Yöntem değişti. Mevcut maddeler eski yöntemin değerleriyle hazırlandı; temizlensin mi?'))cur.rows=[];autoTpl(cur);ed()"><option value="fk" ${c.method=='fk'?'selected':''}>Fine-Kinney (Ö×F×Ş)</option><option value="mx" ${c.method=='mx'?'selected':''}>5×5 Risk Matrisi (O×Ş)</option></select></label>
+  <label>Hedef risk sayısı<input type="number" value="${c.n}" oninput="cur.n=+this.value"></label><label>Alanlar / bölümler (virgülle)<input value="${e(c.alan)}" placeholder="Ofis, Depo, Elektrik panosu…" oninput="cur.alan=this.value"></label></div>${libBox()}${tplWarn()}
   <button class="b" onclick="run(this,genRisk)">Yapay zekâ ile risk analizi hazırla</button>`;
  else if(t=='acil')h=`<h3>Acil durum planı</h3><div class="g"><label>Bağlı risk analizi<select onchange="linkF(this.value)"><option value="">— yok —</option>${S.d.filter(d=>d.type=='risk').map(d=>`<option value="${d.id}" ${c.link==d.id?'selected':''}>${e(d.firma.ad)} – ${new Date(d.date).toLocaleDateString('tr')}</option>`).join('')}</select></label></div>
   <p style="font-size:13px;color:var(--m)">Atanmış ekip üyelerini her satıra <b>Ad Soyad; Görev; Telefon</b> yazın. Boş bırakırsanız çalışan sayısı ve tehlike sınıfına göre boş liste (+3 yedek satır) oluşur.</p>
   <div class="g">${EK.map(x=>`<label>${x}<textarea rows="3" oninput="cur.ekip['${x}']=this.value">${e(c.ekip[x])}</textarea></label>`).join('')}</div><button class="b" onclick="run(this,genText)">Planı yapay zekâ ile hazırla</button>`;
  else h=`<h3>Belge bilgileri</h3><label>Ek bilgi (atanan kişi, tarih, eğitim konusu, yıl vb.)<textarea rows="3" oninput="cur.ek=this.value">${e(c.ek)}</textarea></label><button class="b" onclick="run(this,genText)">Yapay zekâ ile hazırla</button>`;
  $('#opt').innerHTML=h}
-async function genRisk(){const c=cur;c.method=$('#mt').value;const lk=$('#lk')&&$('#lk').value;c.rows=lk?libPick(lk,c.n,c.alan,c.method):[];c.libN=c.rows.length;let g=0;const mt=c.method=='fk'?'Fine-Kinney; olasılık(o): 0.2,0.5,1,3,6,10; frekans(f): 0.5,1,2,3,6,10; şiddet(s): 1,3,7,15,40,100':'5x5 matris; o:1-5, s:1-5, f her zaman 1';
+async function genRisk(){const c=cur;c.method=$('#mt').value;const lb=c.lbls||[];c.rows=lb.length?libPick(lb,c.n,c.alan,c.method):[];c.libN=c.rows.length;let g=0;const mt=c.method=='fk'?'Fine-Kinney; olasılık(o): 0.2,0.5,1,3,6,10; frekans(f): 0.5,1,2,3,6,10; şiddet(s): 1,3,7,15,40,100':'5x5 matris; o:1-5, s:1-5, f her zaman 1';
  try{while(c.rows.length<c.n&&g++<Math.ceil(c.n/8)+4){const k=Math.min(12,c.n-c.rows.length),b=$('#opt button.b');if(b)b.textContent=`Hazırlanıyor… ${c.rows.length}/${c.n}`;
   const o=await ai(`${ctx()}\nYöntem: ${mt}.\nAlanlar: ${c.alan||'iş koluna uygun tüm alanlar'}. Tam ${k} yeni, gerçekçi risk maddesi hazırla (elektrik, yangın, ergonomi, yüksekte çalışma, makine, kimyasal, acil durum vb.). Daha önce yazılanları tekrar etme: ${[...new Set(c.rows.map(r=>r.h))].slice(-60).join('; ')||'yok'}.\nSADECE JSON dizisi: [{"a":"alan","h":"tehlike","r":"risk","o":0,"f":0,"s":0,"t":"alınacak önlemler"}]`);c.rows.push(...jp(o));c.dirty=1;res()}}finally{res()}}
 async function exRisk(){const q=$('#ex').value;if(!q)return;const o=await ai(`${ctx()}\nYöntem: ${cur.method}. Mevcut tehlikeler: ${[...new Set(cur.rows.map(r=>r.h))].slice(0,40).join('; ')}.\nİstek: ${q}. Çakışmayan yeni maddeler üret. SADECE JSON dizisi: [{"a","h","r","o","f","s","t"}]`);cur.rows.push(...jp(o));cur.dirty=1;res()}
@@ -55,7 +54,7 @@ function res(){const c=cur,box=$('#res');if(!c||!box)return;let h='';const t=tpl
   <div class="card"><h3>Risk değerlendirme prosedürü</h3><button class="b s" onclick="run(this,genProc)">Prosedürü hazırla</button><textarea rows="${c.proc?14:2}" oninput="cur.proc=this.value">${e(c.proc)}</textarea></div>`}
  else if(c.type!='risk'&&c.fill&&c.sk)h=tplEd(c);
  else if(c.type!='risk'&&c.text)h=`<div class="card"><h3>Belge metni (düzenlenebilir)</h3><textarea rows="22" oninput="cur.text=this.value">${e(c.text)}</textarea><p style="font-size:12px;color:var(--m)"># başlık, ## alt başlık, - madde</p></div>`;
- if(h)h+=`<button class="b" onclick="kaydet()">💾 Kaydet</button><button class="b s" onclick="run(this,()=>indir(cur))">⬇ Word / Excel indir</button>`;box.innerHTML=h}
+ if(h&&c.type=='risk')h+=outChk(c);if(h)h+=`<button class="b" onclick="kaydet()">💾 Kaydet</button><button class="b s" onclick="run(this,()=>indir(cur))">⬇ Word / Excel indir</button>`;box.innerHTML=h}
 function R(i,k,v){cur.rows[i][k]=['o','f','s'].includes(k)?+v:v;cur.dirty=1;res()}
 function kaydet(){const c=cur;if(!c.firma.ad){alert('Firma adı girin');return}c.date=new Date().toISOString();c.dirty=0;const cp=JSON.parse(JSON.stringify(c)),i=S.d.findIndex(x=>x.id==c.id);i<0?S.d.push(cp):S.d[i]=cp;
  const fo={...c.firma,sektor:c.sektor},j=S.c.findIndex(x=>x.ad==fo.ad);j<0?S.c.push(fo):S.c[j]=fo;sv();nav();alert('Kaydedildi')}
@@ -95,3 +94,15 @@ function set(){m.innerHTML=`<h2>Ayarlar</h2><div class="card"><div class="lg">Ve
 function yedek(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({d:S.d,c:S.c})],{type:'application/json'}));a.download='isg-yedek.json';a.click()}
 async function geri(f){const j=JSON.parse(await f.text());S={...S,d:j.d||[],c:j.c||[]};sv();alert('Yüklendi')}
 (async()=>{try{TP=await tAll();LIB=await kAll()}catch(x){}go('y')})();
+
+// ---------- Risk analizi yardımcıları: iskelet seçimi, çoklu iş kolu, çıktı seçimi ----------
+const MN=m=>m=='fk'?'Fine-Kinney':'5×5 Matris';
+function autoTpl(c){const l=TP.filter(t=>t.type=='risk'&&t.method==c.method);c.tpl=l.length?l[l.length-1].id:'';c.tplMiss=!l.length}
+function selTpl(id){const c=cur,t=TP.find(x=>x.id==id);c.tpl=id;c.tplMiss=0;c.fill=null;if(t&&t.method&&t.method!=c.method&&c.type=='risk'){if(c.rows.length&&!confirm('Şablon '+MN(t.method)+' yöntemine ait. Yöntem buna göre değişecek ve mevcut maddeler temizlenecek. Devam edilsin mi?')){c.tpl='';return ed()}c.method=t.method;c.rows=[]}ed()}
+function libBox(){const c=cur,L=libLabels();if(!c.lbls)c.lbls=libBest(c.sektor)?[libBest(c.sektor)]:[];
+ return `<div class="card" style="margin:8px 0"><b>Kütüphane iş kolları / faaliyetler</b> <small style="color:var(--m)">(birden fazla seçebilirsiniz; seçilenlerden önce madde alınır, eksik kalan yapay zekâyla tamamlanır)</small><br>${L.length?L.map(([l,n],i)=>`<label style="display:inline-block;margin:4px 12px 4px 0;color:var(--t)"><input type="checkbox" style="width:auto" ${c.lbls.includes(l)?'checked':''} onchange="togL(${i},this.checked)"> ${e(l)} (${n})</label>`).join(''):'<small>Kütüphane boş. Kütüphane sekmesinden uzman risk analizi yükleyin.</small>'}</div>`}
+function togL(i,on){const l=libLabels()[i][0],a=cur.lbls||(cur.lbls=[]);const k=a.indexOf(l);if(on&&k<0)a.push(l);if(!on&&k>=0)a.splice(k,1);cur.dirty=1}
+function tplWarn(){const c=cur,t=tplOf(c);if(t)return `<div class="lg" style="background:#e3f2e8;color:#134">✔ Çıktı, <b>${e(t.name)}</b> iskeletine göre (${MN(c.method)}) doldurulacak: başlıklar, sütun düzeni ve biçim korunur.</div>`;
+ return `<div class="lg">⚠ ${MN(c.method)} yöntemine ait bir şablon/iskelet bulunamadı; standart düzende hazırlanacak. Bu yönteme ait bir Excel/Word şablonu <b>Şablonlar</b> veya <b>Kütüphane</b> sekmesinden yükleyip yukarıdaki "Şablon" listesinden seçebilirsiniz (taslağınız korunur).</div>`}
+function outChk(c){const o=c.out||(c.out={a:1,k:1,p:1}),t=tplOf(c),B=(k,l)=>`<label style="display:inline-block;margin-right:14px;color:var(--t)"><input type="checkbox" style="width:auto" ${o[k]?'checked':''} onchange="cur.out.${k}=this.checked?1:0"> ${l}</label>`;
+ return `<div class="card"><b>İndirilecek dosyalar</b><br>${B('a','Risk analizi ('+(t&&t.kind=='xlsx'?'Excel':'Word')+')')}${B('p','Prosedür (Word)')}${B('k','Kapak (Word)')}</div>`}
