@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s),m=$('#m'),e=x=>String(x??'').replace(/&/g,'
 const TY={risk:['Risk Analizi','y'],acil:['Acil Durum Eylem Planı','y'],cal:['Yıllık Çalışma Planı','y'],egp:['Yıllık Eğitim Planı','y'],deg:['Yıllık Değerlendirme Raporu','y'],
 at_ct:['Çalışan Temsilcisi Atama Yazısı','a'],at_de:['Destek Elemanı Atama Yazısı','a'],at_bs:['Bilgi Sahibi Çalışan Atama Yazısı','a'],at_iv:['İşveren Vekili Atama Yazısı','a'],at_re:['Risk Değerlendirme Ekibi Atama Yazısı','a'],at_ek:['Acil Durum Ekibi Atama Yazısı','a'],
 eg_or:['Oryantasyon Eğitimi','e'],eg_ts:['Temel İSG Eğitimi','e'],eg_re:['Risk Değerlendirme Ekibi Eğitimi','e'],eg_de:['Destek Elemanı Eğitimi','e'],eg_ct:['Çalışan Temsilcisi Eğitimi','e'],eg_bs:['Bilgi Sahibi Çalışan Eğitimi','e'],eg_iy:['İlk Yardım Eğitimi','e'],eg_yg:['Yangın ve Tahliye Eğitimi','e']};
-const TABS=[['y','Yasal Evrak Hazırla'],['a','Personel Atamaları'],['e','Eğitim Dokümanları'],['k','Kaydedilenler'],['l','Kütüphane'],['t','Şablonlar'],['s','Ayarlar']];
+const TABS=[['y','Yasal Evrak Hazırla'],['a','Personel Atamaları'],['e','Eğitim Dokümanları'],['k','Kaydedilenler'],['l','Kütüphane'],['t','Şablonlar'],['s','Ayarlar'],['r','Kullanım Rehberi']];
 const TH=['Az Tehlikeli','Tehlikeli','Çok Tehlikeli'],SEC=['İnşaat','Metal / Demir-Çelik','Gıda','Tekstil','Mobilya / Ahşap','Ofis / Hizmet','Depolama / Lojistik','Sağlık','Eğitim','Otomotiv Servis','Kimya','Madencilik'];
 const ILK=[20,15,10],DIG=[50,40,30]; // Oranlar güncel yönetmelikten teyit edilmelidir
 const EK=['Söndürme Ekibi','Koruma Ekibi','Arama-Kurtarma Ekibi','İlk Yardım Ekibi'],EKR=[/söndürme|yangın/i,/koruma/i,/arama|kurtarma/i,/ilk\s?yard[ıi]m/i];

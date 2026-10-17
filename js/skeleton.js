@@ -67,11 +67,16 @@ async function xlFill0(buf,D){xlSt='şablon okuma';const wb=new ExcelJS.Workbook
  const rows=D.risk?D.risk.rows.map((r,i)=>cols.map(c=>riskCell(c.k,r,i,D.risk.method,c.t))):D.grid||[],P=hr+1,pc={};
  cols.forEach(c=>{const x=ws.getCell(P,c.n);pc[c.n]={st:JSON.parse(JSON.stringify(x.style||{})),f:x.formula}});
  xlSt='satır yazma';const last=P+rows.length-1,cfc=new Set();
- (ws.conditionalFormattings||[]).forEach(cf=>{if(typeof cf.ref!='string')return;cf.ref=cf.ref.replace(/([A-Z]+)(\d+):([A-Z]+)(\d+)/g,(m,a,b,c2,d)=>{if(+b>P||+d<P)return m;for(let k=ws.getColumn(a).number;k<=ws.getColumn(c2).number;k++)cfc.add(k);return rows.length?`${a}${b}:${c2}${Math.max(+d,last)}`:m})});
+ (ws.conditionalFormattings||[]).forEach(cf=>{if(typeof cf.ref!='string')return;cf.ref=cf.ref.replace(/([A-Z]+)(\d+):([A-Z]+)(\d+)/g,(m,a,b,c2,d)=>{if(+b>P||+d<P)return m;for(let k=ws.getColumn(a).number;k<=ws.getColumn(c2).number;k++)cfc.add(k);return rows.length?`${a}${b}:${c2}${last}`:m})});
  cols.forEach(c=>{if(cfc.has(c.n)&&pc[c.n].st.fill)delete pc[c.n].st.fill});
  rows.forEach((rw,i)=>{const R=P+i;ws.getRow(R).height=ws.getRow(P).height;cols.forEach((c,j)=>{const x=ws.getCell(R,c.n),p=pc[c.n],v=rw[j]===undefined||rw[j]===null?'':rw[j];x.style=JSON.parse(JSON.stringify(p.st));
   if(typeof p.f=='string'&&p.f)x.value=c.dup&&v===''?null:{formula:tr1(p.f,P,R),result:v};else x.value=v})});
  for(let R=P+rows.length;R<=ws.rowCount;R++)cols.forEach(c=>{const x=ws.getCell(R,c.n);if(!x.formula&&!x.isMerged)x.value=null});
+ if(rows.length){ // yazdırma: son veri satırında bitsin, boş sayfa çıkmasın; başlık her sayfada tekrarlansın
+  const ps=ws.pageSetup,mc=Math.max(...cols.map(c=>c.n));ps.printArea=`A1:${ws.getColumn(mc).letter}${last}`;
+  if(!ps.printTitlesRow)ps.printTitlesRow=`${hr>1&&hdrLike(ws,hr-1)?hr-1:hr}:${hr}`;
+  if(ps.fitToPage&&ps.fitToHeight==1&&rows.length>30)ps.fitToHeight=0;
+  if(Array.isArray(ws.rowBreaks))ws.rowBreaks=ws.rowBreaks.filter(b=>b.id<last)}
  xlSt='özet sayfası';if(D.risk){const o=wb.addWorksheet('Özet'),s=summ({rows:D.risk.rows,method:D.risk.method});o.addRow(['Alana göre dağılım','Adet']).font={bold:true};Object.entries(s.alan).forEach(a=>o.addRow(a));o.addRow([]);o.addRow(['Risk seviyesine göre dağılım','Adet']).font={bold:true};Object.entries(s.seviye).forEach(a=>o.addRow(a));o.getColumn(1).width=40}
  xlSt='kaydetme';wb.calcProperties.fullCalcOnLoad=true;return new Blob([await xlWrite(wb)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
 // Hazır Excel risk şablonu (formüllü): skorlar Excel'de otomatik hesaplanır
