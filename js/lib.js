@@ -6,23 +6,39 @@ const toks=s=>[...new Set(String(s||'').toLocaleLowerCase('tr').replace(/[^a-zç
 const jac=(a,b)=>{const B=new Set(b);let i=0;a.forEach(x=>B.has(x)&&i++);return i/(a.length+b.length-i||1)};
 // rows: [{a,h,r,o,f,s,t,m}], labs(row)->[etiketler]. Benzerlik >= %75 ise yeni madde eklenmez, mevcut maddeye birleştirilir.
 function libMerge(rows,labs,src,lib=LIB){const idx=new Map(),ch=new Set(),ad=(i)=>i.k.forEach(t=>{if(!idx.has(t))idx.set(t,[]);idx.get(t).push(i)});lib.forEach(ad);let nw=0,dup=0;
- rows.forEach(r=>{const k=toks(r.h+' '+r.r),L=labs(r),c=new Map();let best=null,bs=0;k.forEach(t=>(idx.get(t)||[]).forEach(i=>c.set(i,(c.get(i)||0)+1)));
+ rows.forEach(r=>{const k=toks(r.h+' '+r.r),L=labs(r),c=new Map(),nix=ixOf(r.o,(r.m||'fk')=='fk'?r.f:1,r.s,r.m||'fk');let best=null,bs=0;k.forEach(t=>(idx.get(t)||[]).forEach(i=>c.set(i,(c.get(i)||0)+1)));
   c.forEach((n,i)=>{if(n>=Math.min(2,k.length)){const j=jac(k,i.k);if(j>bs){bs=j;best=i}}});
-  if(best&&bs>=0.75){dup++;if(!best.src.includes(src)){best.src.push(src);best.n=best.src.length}L.forEach(l=>{if(!best.l.includes(l))best.l.push(l)});if(!best.t&&r.t)best.t=r.t;ch.add(best);return}
-  const it={id:uid()+(UC++),a:r.a||'',h:r.h||'',r:r.r||'',o:r.o||0,f:r.f||0,s:r.s||0,t:r.t||'',m:r.m,x:r.x||{},l:[...L],src:[src],n:1,k};nw++;lib.push(it);ch.add(it);ad(it)});
+  if(best&&bs>=0.75){dup++;if(!best.src.includes(src)){best.src.push(src);best.n=best.src.length}L.forEach(l=>{if(!best.l.includes(l))best.l.push(l)});if(!best.t&&r.t)best.t=r.t;if(nix>(best.ix??ixOf(best.o,(best.m||'fk')=='fk'?best.f:1,best.s,best.m||'fk'))){best.o=r.o||0;best.f=r.f||0;best.s=r.s||0;best.m=r.m;best.ix=nix}ch.add(best);return}
+  const it={id:uid()+(UC++),a:r.a||'',h:r.h||'',r:r.r||'',o:r.o||0,f:r.f||0,s:r.s||0,t:r.t||'',m:r.m,ix:nix,x:r.x||{},l:[...L],src:[src],n:1,k};nw++;lib.push(it);ch.add(it);ad(it)});
  return{nw,dup,ch:[...ch]}}
 const libLabels=()=>{const c={};LIB.forEach(i=>i.l.forEach(l=>c[l]=(c[l]||0)+1));return Object.entries(c).sort((a,b)=>b[1]-a[1])};
 const libBest=s=>{s=String(s||'').toLocaleLowerCase('tr').split(/[\s/]+/)[0];return s?(libLabels().find(([l])=>l.toLocaleLowerCase('tr').includes(s))||[''])[0]:''};
-const O5=[0.5,1,3,6,10],S5=[1,3,7,15,40],near=(v,a)=>{let b=0;a.forEach((x,k)=>{if(Math.abs(x-v)<Math.abs(a[b]-v))b=k});return b};
-function conv(i,to){const r={a:i.a,h:i.h,r:i.r,t:i.t,x:i.x||{},lib:1,o:i.o,f:i.f,s:i.s};if(i.m==to)return r;
- if(to=='fk'){r.o=O5[Math.min(4,Math.max(0,Math.round(i.o)-1))]||1;r.s=S5[Math.min(4,Math.max(0,Math.round(i.s)-1))]||3;r.f=3}else{r.o=near(i.o,O5)+1;r.s=near(i.s,S5)+1;r.f=1}return r}
+// ---- Yöntemden bağımsız risk indeksi (0-100) ve yöntemler arası dönüşüm ----
+// Fine-Kinney sınır noktaları (20/70/200/400) ile 5×5 sınırları (≈5/10/15) ortak 5 banda hizalanır:
+// 0-20 Düşük · 20-40 Olası · 40-60 Önemli · 60-80 Yüksek · 80-100 Çok Yüksek
+const FKA=[[0.1,0],[20,20],[70,40],[200,60],[400,80],[10000,100]],MXA=[[1,0],[4.5,20],[9.5,60],[14.5,80],[25,100]];
+const interp=(A,x,lg)=>{const P=A.map(([s,v])=>[lg?Math.log10(s):s,v]);x=lg?Math.log10(Math.max(x,1e-6)):x;if(x<=P[0][0])return P[0][1];for(let k=1;k<P.length;k++)if(x<=P[k][0])return P[k-1][1]+(P[k][1]-P[k-1][1])*(x-P[k-1][0])/(P[k][0]-P[k-1][0]);return 100};
+const ixOf=(o,f,s,m)=>{o=+o||1;s=+s||1;f=+f||1;return m=='fk'?interp(FKA,o*f*s,1):interp(MXA,o*s,0)};
+const FO=[0.2,0.5,1,3,6,10],FF=[0.5,1,2,3,6,10],FS=[1,3,7,15,40,100];
+const idxN=(A,v)=>{let b=0;A.forEach((x,k)=>{if(Math.abs(Math.log(x)-Math.log(v||1))<Math.abs(Math.log(A[b])-Math.log(v||1)))b=k});return b};
+// Kaynak bileşenleri hedef ölçeğe yaklaştırılır; hedef indekse en yakın (ve kaynak yapıya en benzer) skor kombinasyonu seçilir
+function convScores(r,from,to){const o=+r.o||1,f=+r.f||1,s=+r.s||1;if(from==to)return{o,f:to=='fk'?f:1,s};const t=ixOf(o,f,s,from);let best=null,bc=1e9;
+ if(to=='mx'){const bo=Math.max(1,idxN(FO,o)),bs=Math.min(5,idxN(FS,s)+1);for(let O=1;O<=5;O++)for(let Sx=1;Sx<=5;Sx++){const c=Math.abs(ixOf(O,1,Sx,'mx')-t)+3*(Math.abs(O-bo)+Math.abs(Sx-bs));if(c<bc){bc=c;best={o:O,f:1,s:Sx}}}return best}
+ const io=Math.min(5,Math.max(1,Math.round(o))),is=Math.min(5,Math.max(1,Math.round(s)));
+ for(let a=0;a<6;a++)for(let b=0;b<6;b++)for(let d=0;d<6;d++){const c=Math.abs(ixOf(FO[a],FF[b],FS[d],'fk')-t)+2*(Math.abs(a-io)+Math.abs(d-(is-1)))+Math.abs(b-4);if(c<bc){bc=c;best={o:FO[a],f:FF[b],s:FS[d]}}}return best}
+function conv(i,to){const from=i.m||'fk',x=convScores(i,from,to);return{a:i.a,h:i.h,r:i.r,t:i.t,x:i.x||{},lib:1,cv:from!=to?1:0,o:x.o,f:x.f,s:x.s,g:i.g||i.a}}
+// Gruplama + sıralama: gruplar ortalama risk indeksine göre en kritikten en aza; grup içinde en riskliden en az riskliye
+function riskSort(rows,m){const g=new Map();rows.forEach(r=>{r.ix=ixOf(r.o,m=='fk'?r.f:1,r.s,m);const k=r.g||r.a||'-';if(!g.has(k))g.set(k,[]);g.get(k).push(r)});
+ return[...g.values()].map(a=>({a:a.sort((p,q)=>q.ix-p.ix),m:a.reduce((s,x)=>s+x.ix,0)/a.length})).sort((p,q)=>q.m-p.m).flatMap(x=>x.a)}
 // Seçim: iş kolu etiketi + (varsa) iş kalemi etiketleri / alanlar; birden çok kaynakta geçen maddeler önce
 function libSel(labels,alan,tags){labels=[].concat(labels||[]);tags=tags||[];let c=LIB.filter(i=>(!labels.length||i.l.some(x=>labels.includes(x)))&&(!tags.length||(i.tg||[]).some(t=>tags.includes(t))));
  const lo=s=>String(s||'').toLocaleLowerCase('tr'),arr=Array.isArray(alan),q=arr?alan.map(lo):lo(alan).split(',').map(x=>x.trim()).filter(Boolean);
  if(q.length&&!tags.length){const f=c.filter(i=>arr?q.includes(lo(i.a)):q.some(x=>lo(i.a).includes(x)));if(f.length||arr)c=f}return c}
-function libPick(labels,n,alan,to,tags){tags=tags||[];const c=libSel(labels,alan,tags).sort((a,b)=>b.n-a.n),g={};
- c.forEach(i=>{const k=((i.tg||[]).find(t=>tags.includes(t)))||i.a||'-';(g[k]=g[k]||[]).push(i)});const gs=Object.values(g),out=[];
- for(let k=0;out.length<n&&gs.some(x=>k<x.length);k++)gs.forEach(x=>{if(k<x.length&&out.length<n)out.push(x[k])});return out.map(i=>conv(i,to))}
+function libPick(labels,n,alan,to,tags){tags=tags||[];const c=libSel(labels,alan,tags).map(i=>({i,ix:i.ix??ixOf(i.o,(i.m||'fk')=='fk'?i.f:1,i.s,i.m||'fk')})),sc=x=>x.ix+5*((x.i.n||1)-1);c.sort((a,b)=>sc(b)-sc(a));
+ const g={};c.forEach(x=>{const k=(x.i.tg||[]).find(t=>tags.includes(t))||x.i.a||'-';(g[k]=g[k]||[]).push(x)});
+ const gs=Object.entries(g).map(([k,a])=>({k,a,m:a.reduce((s,x)=>s+x.ix,0)/a.length})).sort((p,q)=>q.m-p.m),out=[];
+ for(let k=0;out.length<n&&gs.some(x=>k<x.a.length);k++)gs.forEach(x=>{if(k<x.a.length&&out.length<n)out.push({...conv(x.a[k].i,to),g:x.k})});
+ return riskSort(out,to)}
 // İş kalemi sınıflandırması (ücretsiz anahtar sözcük eşleştirme; eşleşmeyenler isteğe bağlı yapay zekâyla sınıflanır)
 const TAX={'İnşaat':{'Hazırlık ve Temel':{'Şantiye kurulumu ve çevre güvenliği':/şantiye (kurulum|düzen|çevre)|çevre güvenli|ziyaretçi|yetkisiz|baraka|konteyner/,'Kazı ve hafriyat':/kazı|hafriyat|iksa|şev|temel/,'Yıkım ve söküm':/yıkım|söküm/},
  'Kaba İnşaat':{'Kalıp işleri':/kalıp/,'Demir işleri':/demir|donat/,'Beton işleri':/beton|vibratör/,'İskele ve yüksekte çalışma':/iskele|yüksekte|korkuluk|düşme|merdiven|boşluk/,'Vinç ve kaldırma':/vinç|kaldırma|sapan|zincir|forklift/,'İş makineleri':/ekskavatör|yükleyici|kamyon|iş makine|dozer|greyder|araç|geri görüş/,'Duvar örme':/duvar|tuğla|briket|gazbeton/},
@@ -60,6 +76,6 @@ function libView(){const L=libLabels();m.innerHTML=`<h2>Kütüphane</h2><div cla
  <button class="b" onclick="run(this,libProbe)">Dosyayı incele</button><div id="pg"></div></div>
  ${libP?`<div class="card"><h3>Sütun eşleştirmesi — ${e(libP.name)}</h3><p style="font-size:13px;color:var(--m)">${libP.sheets} sayfada risk tablosu bulundu; ana sayfa: <b>${e(libP.sheet)}</b> (~${libP.rows} satır). Her sütunun anlamını kontrol edin, gerekirse düzeltin. Örnek değerler sütunun ne içerdiğini gösterir.</p><div class="w"><table><tr><th>Sütun başlığı<th>Örnek değerler<th>Anlamı</tr>${libP.cols.map((c,i)=>`<tr><td><b>${e(c.t)}</b><td>${c.s.map(x=>`<span class="tag">${e(x)}</span>`).join('')}<td><select onchange="libP.cols[${i}].k=this.value">${LK.map(([k,t])=>`<option value="${k}" ${c.k==k?'selected':''}>${t}</option>`).join('')}</select></tr>`).join('')}</table></div>${libP.prev?`<p><b>Önizleme:</b> ${libP.cnt} madde okunacak. İlk satırlar:</p><div class="w"><table><tr><th>Alan<th>Tehlike<th>Risk<th>Ö<th>F<th>Ş<th>Önlem<th>Diğer sütunlar</tr>${libP.prev.map(r=>`<tr><td>${e(r.a)}<td>${e(r.h)}<td>${e(r.r)}<td>${r.o??''}<td>${r.f??''}<td>${r.s??''}<td>${e((r.t||'').slice(0,80))}<td>${e(JSON.stringify(r.x||{}).slice(0,120))}</tr>`).join('')}</table></div>`:''}<p style="font-size:12px;color:var(--m)">Bölüm başlığı satırları ve skorsuz satırlar otomatik atlanır; bölüm başlıkları sonraki maddelerin alanı olur. Excel ise dosyanın boş iskeleti de Şablonlar listesine eklenir.</p><button class="b s" onclick="run(this,libPrev)">Önizle (ilk 6 madde)</button><button class="b" onclick="run(this,libGo)">Onayla ve kütüphaneye ekle</button><button class="b s" onclick="libP=null;libView()">Vazgeç</button></div>`:''}
  ${libRep.length?`<div class="card"><h3>Son yükleme</h3>${libRep.map(r=>r.err?`<p>❌ ${e(r.name)}: ${e(r.err)}</p>`:`<p>✅ <b>${e(r.name)}</b> — ${r.okunan} satır okundu, <b>${r.nw} yeni madde</b>, ${r.dup} benzer/tekrar madde birleştirildi.${r.isk?' Dosyanın boş iskeleti Şablonlar listesine eklendi.':''} Ana iş kolu: ${e(r.ana)}; ${r.alanlar} farklı alan/bölüm.</p>`).join('')}</div>`:''}
- <div class="card"><h3>Kütüphane durumu: ${LIB.length} madde</h3>${L.length?`<div class="w"><table><tr><th>İş kolu / faaliyet<th>Madde sayısı<th>Birden çok kaynakta geçen</tr>${L.map(([l,n])=>`<tr><td>${e(l)}<td>${n}<td>${LIB.filter(i=>i.l.includes(l)&&i.n>1).length}</tr>`).join('')}</table></div><p style="font-size:12px;color:var(--m)">Bir madde birden çok iş koluna etiketli olabilir (ör. inşaat belgesindeki yemekhane riskleri hem İnşaat hem Yemekhane / Mutfak sayılır).</p>`:'<p>Kütüphane boş.</p>'}</div>
+ <div class="card"><h3>Kütüphane durumu: ${LIB.length} madde</h3><p style="font-size:13px;color:var(--m)">Kaynak yöntemler: Fine-Kinney ${LIB.filter(i=>(i.m||'fk')=='fk').length} · 5×5 ${LIB.filter(i=>i.m=='mx').length}. Havuz yöntemden bağımsızdır: maddeler hedef yönteme otomatik çevrilir.</p>${L.length?`<div class="w"><table><tr><th>İş kolu / faaliyet<th>Madde sayısı<th>Birden çok kaynakta geçen</tr>${L.map(([l,n])=>`<tr><td>${e(l)}<td>${n}<td>${LIB.filter(i=>i.l.includes(l)&&i.n>1).length}</tr>`).join('')}</table></div><p style="font-size:12px;color:var(--m)">Bir madde birden çok iş koluna etiketli olabilir (ör. inşaat belgesindeki yemekhane riskleri hem İnşaat hem Yemekhane / Mutfak sayılır).</p>`:'<p>Kütüphane boş.</p>'}</div>
  ${libTagStats()}
  ${S.ls.length?`<div class="card"><h3>Kaynak belgeler</h3>${S.ls.map(r=>`<p>${e(r.name)} <span class="tag">${e(r.ana)}</span><span class="tag">${r.nw} yeni</span>${r.isk?'<span class="tag">iskelet kaydedildi</span>':''}<span class="tag">${r.method=='fk'?'Fine-Kinney':'5×5'}</span> <button class="b r" onclick="run(this,()=>libDel('${r.id}'))">Çıkar</button></p>`).join('')}<button class="b r" onclick="run(this,libClear)">Kütüphaneyi temizle</button></div>`:''}`}

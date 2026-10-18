@@ -42,6 +42,8 @@ function wYontem(){const c=cur,tl=TP.filter(t=>t.type=='risk');$('#wb').innerHTM
 function wSayi(){const c=cur,lb=c.lbls||[],tg=c.tg||[],as=c.alanSel||[],av=(lb.length||tg.length||as.length)?libSel(lb,as.length?as:c.alan,tg).length:0,n=+c.n||0,fromLib=Math.min(n,av),ai=Math.max(0,n-av);
  $('#wb').innerHTML=`<h3>4. Kaç madde hazırlansın?</h3><label>Hedef madde sayısı<input type="number" value="${c.n}" oninput="cur.n=+this.value" onchange="wr()"></label>
  <p>Seçiminize uyan kütüphanede <b>${av} benzersiz madde</b> var. <b>${fromLib}</b> madde kütüphaneden alınacak${ai?`, <b>${ai}</b> madde eksik kalıyor`:''}.</p>
+
+ <p style="font-size:13px">Seçilen maddelerin kaynak yöntemi: Fine-Kinney <b>${libSel(lb,as.length?as:c.alan,tg).filter(i=>(i.m||'fk')=='fk').length}</b>, 5×5 <b>${libSel(lb,as.length?as:c.alan,tg).filter(i=>i.m=='mx').length}</b>. Farklı yöntemdekiler <b>${MN(c.method)}</b> skorlarına otomatik çevrilir.</p>${chk(c.sortRisk!==false,'cur.sortRisk=this.checked;wr()','Maddeleri gruplara ayır; grupları ve grup içindeki maddeleri en riskliden en az riskliye sırala (önerilen)')}
  ${ai?`${chk(c.aiFill!==false,'cur.aiFill=this.checked;wr()','Eksik kalan maddeleri yapay zekâ ile tamamla')}${!S.k&&c.aiFill!==false?'<p class="lg">API anahtarı girilmemiş; yapay zekâ tamamlaması çalışmaz. Ayarlar sekmesinden girebilirsiniz.</p>':''}`:'<p style="color:var(--m)">Yapay zekâ gerekmeyecek; maliyet sıfır.</p>'}`}
 // --- Diğer belgeler ---
 function wSoru(){const c=cur;c.q=c.q||{};$('#wb').innerHTML='<h3>2. Belge için kritik sorular</h3>'+qsOf(c.type).map(q=>{const v=c.q[q.k];
