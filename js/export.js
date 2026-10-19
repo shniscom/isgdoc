@@ -30,7 +30,7 @@ async function indir0(d){const tt=TY[d.type][0],f=d.firma,nm=`${f.ad} - `,t=tplO
   if(og.p){const pt=procTpl();if(pt&&d.pfill)await dlBlob(await dxFill(pt.buf,{...base,fill:d.pfill}),nm+'Risk Değerlendirme Prosedürü.docx');else await pack(nm+'Risk Değerlendirme Prosedürü',[d.proc?bl(d.proc):[P('Prosedür henüz hazırlanmadı.')]])}return}
  if(t)await planOf(t);if(t){const D={...base,fill:d.fill,teams:d.type=='acil'?(hd,b,tp)=>teamRows(d,hd,b,tp):null,grid:d.fill&&d.fill.grid};
   if(d.type=='acil')await pack(nm+'Kapak',[cover(d,tt)]);
-  return dlBlob(t.kind=='xlsx'?await (t.pub&&t.pub.plan?xpFill:xlFill)(t.buf,D):await dxFill(t.buf,D),nm+tt+ext)}
+  return dlBlob(t.kind=='xlsx'?await (t.pub&&t.pub.plan?xpFill:D.fill&&D.fill.xs?xsFill:xlFill)(t.buf,D):await dxFill(t.buf,D),nm+tt+ext)}
  const body=d.type=='acil'?[...bl(d.text||''),H1('ACİL DURUM EKİPLERİ'),...ekipTb(d),H1('EKLER'),...['EK-1 Acil durum krokisi','EK-2 Kaçış yolları ve toplanma yeri krokisi','EK-3 İlk yardım dolabı yerleri ve sayısı','EK-4 Yangın söndürücü yerleri ve sayısı','EK-5 Acil durum ekipman listesi','EK-6 Tatbikat formu'].map(s=>new (X().Paragraph)({text:s,bullet:{level:0}}))]:bl(d.text||'');
  await pack(nm+tt,d.type=='acil'?[cover(d,tt),body]:[body])}
 // Yapay zekânın hazırladığı biçimli Word şablonu (üst/alt bilgi, tablolar, sütun genişlikleri)

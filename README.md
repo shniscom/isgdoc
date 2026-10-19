@@ -35,3 +35,6 @@ Yeni belge oluştururken adım adım sihirbaz çalışır (risk analizi: firma �
 
 ### Plan / liste tipi Excel şablonları (yıllık çalışma, eğitim planı vb.)
 Excel şablonunun yapısı otomatik çözülür: başlık bloğu (etiket altındaki değer hücreleri), başlık satırları (iki seviyeli olabilir), ay sütunları (X işaretleri), bölüm satırları ve dipnotlar. Yapay zekâ satırları bölüm bölüm (parça parça) üretir, iskeletin bölüm/sütun düzenine sadık kalır; çıktı iskeletin biçimiyle (bölüm rengi, X hücre rengi, birleşik hücreler, yazdırma alanı) yazılır. Üretilen satırlar "Şablon alanları" bölümünde düzenlenebilir. Eski yüklenmiş şablonlar ilk kullanımda otomatik çözümlenir.
+
+### Şablon türüne göre motor seçimi
+Risk türündeki Excel şablonları risk motoruyla, diğer Excel şablonları (plan, liste, form) önce plan motoruyla (bölüm/ay yapısı), yapı bulunamazsa hücre adresli form motoruyla doldurulur. Word şablonları alan/tablo motoruyla doldurulur. Yapay zekâ, parça başına satır sayısı çok düşerse yeniden dener; yine düşükse şablonun kendi satırlarını kullanır.

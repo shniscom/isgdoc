@@ -90,14 +90,15 @@ function xlHead(ws,hr,F,D){const isL=t=>{t=String(t||'').replace(/[:：_\s.]+$/,
  for(let r=1;r<hr;r++)ws.getRow(r).eachCell(c=>{const t=cv(c);if(typeof t!='string'||slave(c))return;let y=t;
   if(/geçerlilik\s*tarihi/i.test(t))y=t.replace(/(\d{1,2}\.\d{1,2}\.\d{4})\s*([-–])\s*(\d{1,2}\.\d{1,2}\.\d{4})/,`${fd(td)} $2 ${fd(en)}`);
   else if(/tarih/i.test(t)&&DT.test(t))y=t.split('\n').map(l=>/tarih/i.test(l)&&DT.test(l)?l.replace(DT,fd(td)):l).join('\n');
-  if(/\b20\d\d\b/.test(y)&&/plan|rapor|yıllık/i.test(y))y=y.split('\n').map(l=>DT.test(l)?l:l.replace(/\b20\d\d\b/,yr)).join('\n');
+  if(!D.noYear&&/\b20\d\d\b/.test(y)&&/plan|rapor|yıllık/i.test(y))y=y.split('\n').map(l=>DT.test(l)?l:l.replace(/\b20\d\d\b/,yr)).join('\n');
   if(y!==t)c.value=y});
  const so={proje:true,found:[]};for(let r=1;r<hr;r++)ws.getRow(r).eachCell(c=>{const t=cv(c);if(typeof t!='string'||slave(c)||isL(t))return;const y=swapFirm(t,F,so);if(y!==t)c.value=y});
  try{const hf=ws.headerFooter||{};['oddHeader','oddFooter','evenHeader','evenFooter','firstHeader','firstFooter'].forEach(k=>{if(typeof hf[k]=='string')hf[k]=swapFirm(hf[k],F,{proje:true})})}catch(e){}
  try{const tok=so.found[0]&&so.found[0].split(/\s+/)[0].toLocaleUpperCase('tr');if(tok&&ws.name.toLocaleUpperCase('tr').includes(tok))ws.name=D.sheetName||'Risk Analizi'}catch(e){}
+ const nl=r=>{let k=0;ws.getRow(r).eachCell(c=>{const t=cv(c);if(typeof t=='string'&&!slave(c)&&isL(t))k++});return k};
  const put=(y,x)=>{const old=cv(y);y.value=typeof old=='string'&&x&&old===old.toLocaleUpperCase('tr')?x.toLocaleUpperCase('tr'):x};
  for(let r=1;r<hr;r++)ws.getRow(r).eachCell((c,n)=>{const t=cv(c);if(typeof t!='string'||!isL(t)||DT.test(t)||slave(c))return;const x=lbl(t,F,D.date);
-  if(!/[:：]\s*$/.test(t)&&r+1<hr){const b=res(ws.getCell(r+1,n)),bv=cv(b);if(!(typeof bv=='string'&&isL(bv))&&!(b.address==c.address)){put(b,x);return}}
+  if(!/[:：]\s*$/.test(t)&&r+1<hr&&nl(r)>=2){const b=res(ws.getCell(r+1,n)),bv=cv(b);if(!(typeof bv=='string'&&isL(bv))&&!(b.address==c.address)){put(b,x);return}}
   for(let k=n+1;k<=n+8;k++){let y=ws.getCell(r,k);if(y.isMerged&&y.master&&y.master.address==c.address)continue;if(y.isMerged&&y.master)y=y.master;if(typeof cv(y)=='string'&&isL(cv(y)))break;put(y,x);break}})}
 async function xlFill(buf,D){try{return await xlFill0(buf,D)}catch(e){throw new Error('Excel doldurma hatası ['+xlSt+']: '+(e.message||e))}}
 async function xlFill0(buf,D){xlSt='şablon okuma';const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const sh=(D.risk&&xlSheet(wb,true))||xlSheet(wb,false);if(!sh)throw new Error('Excel şablonunda başlık satırı bulunamadı');const ws=sh.w,F=D.firma||{},hr=sh.hr,cols=xlCols(ws,hr);xlLogic(ws,cols,hr+1);cols.forEach(c=>{if(!c.dup)return;const k=hk(c.t.replace(/#\d+$/,'')),f=ws.getCell(hr+1,c.n).formula;c.kd=typeof f=='string'&&f?(f.includes('*')?'skor':/^(IF|IFS|VLOOKUP|LOOKUP|INDEX)/i.test(f)?'lv':''):(['o','f','s','skor','lv'].includes(k)?k:'')});xlSt='firma bilgileri';
