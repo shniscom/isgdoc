@@ -1,10 +1,30 @@
 // Şablon iskeleti: Word (.docx) ve Excel (.xlsx) dosyalarının biçimini koruyarak doldurma
 const W='http://schemas.openxmlformats.org/wordprocessingml/2006/main',wq=(n,t)=>[...n.getElementsByTagNameNS(W,t)],wk=(n,t)=>[...n.childNodes].filter(c=>c.localName==t);
 const ptx=p=>wq(p,'t').map(t=>t.textContent).join('');
-const LBL=[['ad',/(firma|iş\s?yeri|işyeri|kurum|şirket).{0,14}(ad|unvan|ünvan)|^firma|unvan|ünvan/i],['sgk',/sgk|sicil/i],['adres',/adres/i],['th',/tehlike sınıf/i],['isveren',/işveren/i],['uzman',/uzman|hazırlayan/i],['hekim',/hekim/i],['tarih',/tarih/i]];
-function lbl(t,f,date){t=String(t||'').replace(/[:：_\s.]+$/,'').trim();if(!t||t.length>45)return'';for(const[k,r]of LBL)if(r.test(t))return k=='th'?(TH[f.th]||''):k=='tarih'?new Date(date).toLocaleDateString('tr'):(f[k]||'');return''}
-const hk=t=>{t=String(t||'').toLocaleLowerCase('tr');return/sıra|^no$|^s\.?\s?no/.test(t)?'no':/önlem|kontrol|düzeltici/.test(t)?'t':/skor|puan|derece|risk değeri/.test(t)?'skor':/seviye|sınıf|düzey|kategori/.test(t)?'lv':/olasılık/.test(t)?'o':/frekans|sıklık/.test(t)?'f':/şiddet/.test(t)?'s':/tehlike/.test(t)?'h':/risk|sonuç|zarar/.test(t)?'r':/alan|bölüm|faaliyet|yer/.test(t)?'a':''};
-const riskCell=(k,r,i,mt,ht)=>k?({no:i+1,a:r.a,h:r.h,r:r.r,o:r.o,f:r.f,s:r.s,skor:sk(r,mt),lv:lv(sk(r,mt),mt),t:r.t})[k]??'':(r.x&&r.x[ht])||'';
+const LBL=[['is',/yapılan\s*iş/i],['cs',/^çalışan sayısı\s*$/i],['ad',/(firma|iş\s?yeri|işyeri|kurum|şirket).{0,14}(ad|unvan|ünvan)|^firma|unvan|ünvan/i],['sgk',/sgk|sicil/i],['adres',/adres/i],['th',/tehlike sınıf/i],['isveren',/işveren/i],['uzman',/uzman|hazırlayan/i],['hekim',/hekim/i],['tarih',/tarih/i]];
+function lbl(t,f,date){t=String(t||'').replace(/[:：_\s.]+$/,'').trim();if(!t||t.length>45)return'';const tl=t.toLocaleLowerCase('tr');for(const[k,r]of LBL)if(r.test(tl))return k=='is'?[f.proje,f.calisan?'Toplam '+f.calisan+' Çalışan':''].filter(Boolean).join('\n'):k=='cs'?String(f.calisan||''):k=='th'?(TH[f.th]||''):k=='tarih'?new Date(date).toLocaleDateString('tr'):(f[k]||'');return''}
+
+// ---- Kaynak şablondan kalan firma/proje/sicil bilgisini seçilen firmayla değiştir ----
+const CW="(?:[A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ0-9.&'’-]*|ve|VE)",CORE=new RegExp('(?:'+CW+'\\s+){0,10}?(?:A\\.\\s?Ş\\.?|ANONİM\\s+ŞİRKETİ|LTD\\.?\\s?ŞTİ\\.?|LİMİTED\\s+ŞİRKETİ)','g'),CSKIP=/BELEDİYE|BAKANLIK|MÜDÜRLÜĞ|BAŞKANLIĞ|KURUM|SGK|AFAD|ÇSGB/,PRJ=/[A-ZÇĞİÖŞÜ0-9][A-ZÇĞİÖŞÜ0-9 .'’]{4,}?\s(?:PROJESİ|ŞANTİYESİ|ŞANTİYE SAHASI|İNŞAATI)(?![a-zçğıöşü])(?:\s*\([^)]*\))?/g;
+const fz=x=>String(x||'').toLocaleLowerCase('tr').replace(/\s+/g,'');
+function swapFirm(t,F,o){if(typeof t!='string'||!t)return t;o=o||{};let s=t;
+ if(F.ad)s=s.replace(CORE,m=>{if(CSKIP.test(m)||fz(m)==fz(F.ad))return m;(o.found=o.found||[]).push(m);return m===m.toLocaleUpperCase('tr')?F.ad.toLocaleUpperCase('tr'):F.ad});
+ s=s.replace(/(?<![\d.])\d\.\d{4}\.\d{2}\.\d{2}\.\d{5,8}(?:\.\d+)*(?:-\d+)?/g,F.sgk||'').replace(/(?<!\d)\d{20,26}(?!\d)/g,m=>m==F.sgk?m:(F.sgk||''));
+ if(o.proje){const pj=F.proje||'';s=s.replace(PRJ,m=>pj&&fz(m)==fz(pj)?m:pj.toLocaleUpperCase('tr')).replace(/\s*\n\s*$/,'');if(!pj)s=s.replace(/\s*[–—-]\s*$/,'').replace(/^\s*[–—-]\s*/,'')}
+ return s}
+// ---- Boş kalan hücreler için uzman varsayılanları (kural tabanlı) ----
+const SOR=[[/yüksekte|düşme|iskele|çatı|korkuluk|kenar|merdiven/i,'Şantiye şefi, İSG Uzmanı, Taşeron yetkilisi'],[/elektrik|kablo|pano|topraklama|aydınlatma|priz/i,'Elektrik sorumlusu, Şantiye şefi'],[/yangın|acil|söndür|tahliye|toplanma|patlama/i,'İşveren/vekili, İSG Uzmanı, Acil durum ekibi'],[/makine|ekipman|vinç|forklift|kaldırma|kepçe|kamyon|araç|trafik/i,'Makine/ekipman sorumlusu, Şantiye şefi'],[/kimyasal|solvent|boya|asbest|gaz|toz|silis/i,'İSG Uzmanı, İşyeri hekimi, Birim sorumlusu'],[/gürültü|titreşim|ergonomi|sıcak|soğuk|hijyen|sağlık|ilk\s?yardım|el aleti/i,'İşyeri hekimi, İSG Uzmanı, Birim sorumlusu'],[/kazı|kalıp|demir|beton|temel|yıkım|göçük|iksa/i,'Şantiye şefi, Formen, İSG Uzmanı']];
+const semK=(ht,dk)=>{if(dk)return dk+'2';const t=String(ht||'').toLocaleLowerCase('tr');return/etkilenen/.test(t)?'e':/sorumlu/.test(t)?'sor':/termin/.test(t)?'ter':/açıklama/.test(t)?'ac':''};
+function riskDef(k,r,mt){const tx=`${r.a||''} ${r.h||''} ${r.r||''}`,S=sk(r,mt),fk=mt=='fk',hi=fk?S>=200:S>=10;
+ const a2=()=>{const o=+r.o||0,f=+r.f||0,s=+r.s||0;return fk?{o:o>0.5?0.5:o,f:f>3?Math.max(1,Math.ceil(f/3)):f,s}:{o:Math.max(1,Math.ceil(o/2)),s}};
+ switch(k){case'e':return/yangın|acil|trafik|araç|vinç|kazı|yıkım|ziyaret/i.test(tx)?'Çalışanlar, Ziyaretçiler':'Çalışanlar';
+  case'sor':{const m=SOR.find(x=>x[0].test(tx));return m?m[1]:'İşveren/vekili, İSG Uzmanı, Birim sorumlusu'}
+  case'ter':return fk?(S>=400?'Hemen':S>=200?'1 ay içinde':S>=70?'3 ay içinde':S>=20?'6 ay içinde':'Sürekli izlenecek'):(S>=15?'Hemen':S>=10?'1 ay içinde':S>=5?'3 ay içinde':'6 ay içinde');
+  case'ac':return hi?'Önlemler uygulanana kadar çalışma durdurulmalı veya kısıtlanmalıdır. DÖF uygulanmalı, etkinliği izlenmelidir.':'Riskleri D/Ö Kontrol Tedbirlerine göre denetleyiniz. DÖF leri uygulayınız.';
+  case'o2':return a2().o;case'f2':return fk?a2().f:'';case's2':return a2().s;
+  case'skor2':return sk({...r,...a2()},mt);case'lv2':return lv(sk({...r,...a2()},mt),mt)}return''}
+const hk=t=>{t=String(t||'').toLocaleLowerCase('tr');return/sorumlu|termin|etkilenen|açıklama/.test(t)?'':/riskin tanım|risk tanım/.test(t)?'lv':/sıra|^no$|^s\.?\s?no/.test(t)?'no':/önlem|kontrol|düzeltici/.test(t)?'t':/skor|puan|derece|risk değeri/.test(t)?'skor':/seviye|sınıf|düzey|kategori/.test(t)?'lv':/olasılık/.test(t)?'o':/frekans|sıklık/.test(t)?'f':/şiddet/.test(t)?'s':/tehlike/.test(t)?'h':/risk|sonuç|zarar/.test(t)?'r':/alan|bölüm|faaliyet|yer/.test(t)?'a':''};
+const riskCell=(k,r,i,mt,ht,dk)=>{if(k)return({no:i+1,a:r.a,h:r.h,r:r.r,o:r.o,f:r.f,s:r.s,skor:sk(r,mt),lv:lv(sk(r,mt),mt),t:r.t})[k]??'';const v=r.x&&r.x[ht];if(v!==undefined&&v!=='')return v;return riskDef(semK(ht,dk),r,mt)};
 // ---------- WORD ----------
 async function dxLoad(buf){const z=await JSZip.loadAsync(buf),doc=new DOMParser().parseFromString(await z.file('word/document.xml').async('string'),'application/xml'),body=doc.getElementsByTagNameNS(W,'body')[0],TBL=wk(body,'tbl');
  const T=TBL.map((t,i)=>{const rows=wk(t,'tr'),tx=rows.map(r=>wk(r,'tc').map(c=>wq(c,'p').map(ptx).join(' ').trim())),hd=tx[0]||[],bd=tx.slice(1);
@@ -15,22 +35,28 @@ async function dxLoad(buf){const z=await JSZip.loadAsync(buf),doc=new DOMParser(
   if(ti>=0&&T[ti].list)return;const t=ptx(p).trim();if(ti<0&&!t)return;sl.push({id:'s'+k,k,t,ti,r,c})});
  const rt=T.find(t=>t.list&&t.hd.filter(hk).length>=3),method=rt?(rt.hd.some(h=>hk(h)=='f')?'fk':'mx'):'';return{z,doc,body,TBL,pub:{kind:'docx',T,sl,method}}}
 const dxAnalyze=async b=>(await dxLoad(b)).pub;
-const dxText=p=>[...p.T.filter(t=>t.list).map(t=>`[TABLO ${t.i}] başlıklar: ${t.hd.join(' | ')} (mevcut satır: ${t.n}; öncesindeki başlık: ${t.before})`),...p.sl.map(s=>`[${s.id}]${s.ti>=0?` (tablo ${s.ti} satır ${s.r} sütun ${s.c})`:''} ${s.t||'(boş)'}`)].join('\n').slice(0,14000);
+const dxText=(p,lim=14000)=>[...p.T.filter(t=>t.list).map(t=>`[TABLO ${t.i}] başlıklar: ${t.hd.join(' | ')} (mevcut satır: ${t.n}; öncesindeki başlık: ${t.before})`),...p.sl.map(s=>`[${s.id}]${s.ti>=0?` (tablo ${s.ti} satır ${s.r} sütun ${s.c})`:''} ${s.t||'(boş)'}`)].join('\n').slice(0,lim);
 function setP(p,text){const d=p.ownerDocument,rs=wq(p,'r');let r=rs[0];if(!r){r=d.createElementNS(W,'w:r');const rp=wq(p,'rPr')[0];if(rp&&rp.parentNode.localName=='pPr')r.appendChild(rp.cloneNode(true));p.appendChild(r)}
  [...r.childNodes].forEach(n=>{if(['t','tab','br'].includes(n.localName))r.removeChild(n)});const t=d.createElementNS(W,'w:t');t.setAttribute('xml:space','preserve');t.textContent=text;r.appendChild(t);rs.slice(1).forEach(x=>x.parentNode&&x.parentNode.removeChild(x))}
 // D: {firma,date,fill:{slots,rows},risk:{rows,method},teams:(hd,before)=>rows|null}
+const ser=d=>{let x=new XMLSerializer().serializeToString(d);return x.startsWith('<?xml')?x:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+x};
+// Paragraf içindeki kaynak firma/proje/sicil bilgisi değiştirilir; alan kodu (sayfa no vb.) bozulmaz
+function dxSwap(doc,F,o){wq(doc.documentElement,'p').forEach(p=>{const a=ptx(p);if(!a)return;const b=swapFirm(a,F,o);if(b===a)return;
+ const ts=wq(p,'t');let ok=false;ts.forEach(t=>{const y=swapFirm(t.textContent,F,o);if(y!==t.textContent){t.textContent=y;t.setAttribute('xml:space','preserve')}});
+ if(ptx(p)===b)return;if(wq(p,'fldChar').length||wq(p,'fldSimple').length)return;setP(p,b)})}
 async function dxFill(buf,D){const{z,doc,body,TBL,pub}=await dxLoad(buf),P=wq(body,'p'),F=D.firma||{},fl=D.fill||{slots:{},rows:{}},by={};pub.sl.forEach(s=>by[s.ti+'.'+s.r+'.'+s.c]=s);
  pub.sl.forEach(s=>{const p=P[s.k];let v=fl.slots[s.id];
   if(v===undefined){ // etiket tabanlı otomatik doldurma
-   if(s.ti>=0&&s.c>0){const l=by[s.ti+'.'+s.r+'.'+(s.c-1)];const x=l&&lbl(l.t,F,D.date);if(x)v=x}
+   if(s.ti>=0&&s.c>0&&!(s.r==0&&pub.T[s.ti].n>=2)){const l=by[s.ti+'.'+s.r+'.'+(s.c-1)];const x=l&&lbl(l.t,F,D.date);if(x)v=x}
    else{const q=s.t.match(/^(.{2,40}?)\s*[:：]\s*[_\s.…]*$/);if(q){const x=lbl(q[1],F,D.date);if(x)v=q[1]+': '+x}}}
   if(v!==undefined)setP(p,String(v))});
  pub.T.forEach(t=>{if(!t.list)return;let rows=fl.rows[t.i];
-  if(D.teams){const x=D.teams(t.hd,t.before);if(x)rows=x}
-  if(D.risk&&t.hd.filter(h=>hk(h)).length>=3){const ks=t.hd.map(hk);rows=D.risk.rows.map((r,i)=>ks.map((k,j)=>riskCell(k,r,i,D.risk.method,t.hd[j])))}
+  if(D.teams){const tp=wk(TBL[t.i],'tr').slice(1).map(r=>wk(r,'tc').map(c=>wq(c,'p').map(ptx).join(' ').trim())),x=D.teams(t.hd,t.before,tp);if(x)rows=x}
+  if(D.risk&&t.hd.filter(h=>hk(h)).length>=3){const ks=t.hd.map(hk);rows=D.risk.rows.map((r,i)=>ks.map((k,j)=>{const dp=k&&ks.indexOf(k)<j;return riskCell(dp?'':k,r,i,D.risk.method,t.hd[j]+(dp?'#2':''),dp?k:'')}))}
   if(!rows)return;const tb=TBL[t.i],trs=wk(tb,'tr'),pr=trs[trs.length-1].cloneNode(true);trs.slice(1).forEach(x=>tb.removeChild(x));
   rows.forEach(rw=>{const tr=pr.cloneNode(true);wk(tr,'tc').forEach((tc,ci)=>{const ps=wq(tc,'p');setP(ps[0],String(rw[ci]??''));ps.slice(1).forEach(x=>tc.removeChild(x))});tb.appendChild(tr)})});
- let x=new XMLSerializer().serializeToString(doc);if(!x.startsWith('<?xml'))x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+x;z.file('word/document.xml',x);return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'})}
+ dxSwap(doc,F,{});for(const n of Object.keys(z.files).filter(n=>/^word\/(header|footer)\d*\.xml$/.test(n))){const hd=new DOMParser().parseFromString(await z.file(n).async('string'),'application/xml');dxSwap(hd,F,{proje:true});z.file(n,ser(hd))}
+ z.file('word/document.xml',ser(doc));return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'})}
 // ---------- EXCEL ----------
 const slave=c=>c.isMerged&&c.master&&c.master.address!=c.address&&c.master.row==c.row; // yalnızca yatay birleşik hücre kalıntısı; dikey birleşik başlıklar gerçek başlıktır
 const cv=c=>{const v=c.value;return v&&v.richText?v.richText.map(x=>x.text).join(''):v&&typeof v=='object'&&v.result!==undefined?v.result:v&&v.text?v.text:v};
@@ -56,15 +82,27 @@ async function xlAnalyze(buf){const wb=new ExcelJS.Workbook();await wb.xlsx.load
  return{kind:'xlsx',sheet:sh.w.name,hr:sh.hr,hd:cols.map(c=>c.t),cols:cols.map(c=>({t:c.t,k:c.k,dup:!!c.dup,f:typeof sh.w.getCell(sh.hr+1,c.n).formula=='string'})),risk:!!rs,method:rs?(ks.includes('f')?'fk':ks.includes('o')&&ks.includes('s')?'mx':''):''}}
 const tr1=(f,a,b)=>f.replace(/(\$?[A-Z]{1,3})(\$?)(\d+)/g,(x,c,d,n)=>d||+n!=a?x:c+b);
 // D: {firma,date,risk:{rows,method},grid}
+
+// Başlık bloğu: tarih/yıl, kaynak firma bilgisi, etiket→değer (sağda veya altta). Risk ve plan Excel'leri ortak kullanır
+function xlHead(ws,hr,F,D){const isL=t=>{t=String(t||'').replace(/[:：_\s.]+$/,'').trim();return t.length>0&&t.length<=45&&LBL.some(([k,r])=>r.test(t.toLocaleLowerCase('tr')))};
+ const td=new Date(D.date||Date.now()),fd=d=>d.toLocaleDateString('tr'),en=new Date(td);en.setFullYear(td.getFullYear()+[6,4,2][F.th??1]);const DT=/\d{1,2}\.\d{1,2}\.\d{4}/,yr=D.year||td.getFullYear();
+ const res=c=>c.isMerged&&c.master?c.master:c;
+ for(let r=1;r<hr;r++)ws.getRow(r).eachCell(c=>{const t=cv(c);if(typeof t!='string'||slave(c))return;let y=t;
+  if(/geçerlilik\s*tarihi/i.test(t))y=t.replace(/(\d{1,2}\.\d{1,2}\.\d{4})\s*([-–])\s*(\d{1,2}\.\d{1,2}\.\d{4})/,`${fd(td)} $2 ${fd(en)}`);
+  else if(/tarih/i.test(t)&&DT.test(t))y=t.split('\n').map(l=>/tarih/i.test(l)&&DT.test(l)?l.replace(DT,fd(td)):l).join('\n');
+  if(/\b20\d\d\b/.test(y)&&/plan|rapor|yıllık/i.test(y))y=y.split('\n').map(l=>DT.test(l)?l:l.replace(/\b20\d\d\b/,yr)).join('\n');
+  if(y!==t)c.value=y});
+ const so={proje:true,found:[]};for(let r=1;r<hr;r++)ws.getRow(r).eachCell(c=>{const t=cv(c);if(typeof t!='string'||slave(c)||isL(t))return;const y=swapFirm(t,F,so);if(y!==t)c.value=y});
+ try{const hf=ws.headerFooter||{};['oddHeader','oddFooter','evenHeader','evenFooter','firstHeader','firstFooter'].forEach(k=>{if(typeof hf[k]=='string')hf[k]=swapFirm(hf[k],F,{proje:true})})}catch(e){}
+ try{const tok=so.found[0]&&so.found[0].split(/\s+/)[0].toLocaleUpperCase('tr');if(tok&&ws.name.toLocaleUpperCase('tr').includes(tok))ws.name=D.sheetName||'Risk Analizi'}catch(e){}
+ const put=(y,x)=>{const old=cv(y);y.value=typeof old=='string'&&x&&old===old.toLocaleUpperCase('tr')?x.toLocaleUpperCase('tr'):x};
+ for(let r=1;r<hr;r++)ws.getRow(r).eachCell((c,n)=>{const t=cv(c);if(typeof t!='string'||!isL(t)||DT.test(t)||slave(c))return;const x=lbl(t,F,D.date);
+  if(!/[:：]\s*$/.test(t)&&r+1<hr){const b=res(ws.getCell(r+1,n)),bv=cv(b);if(!(typeof bv=='string'&&isL(bv))&&!(b.address==c.address)){put(b,x);return}}
+  for(let k=n+1;k<=n+8;k++){let y=ws.getCell(r,k);if(y.isMerged&&y.master&&y.master.address==c.address)continue;if(y.isMerged&&y.master)y=y.master;if(typeof cv(y)=='string'&&isL(cv(y)))break;put(y,x);break}})}
 async function xlFill(buf,D){try{return await xlFill0(buf,D)}catch(e){throw new Error('Excel doldurma hatası ['+xlSt+']: '+(e.message||e))}}
-async function xlFill0(buf,D){xlSt='şablon okuma';const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const sh=(D.risk&&xlSheet(wb,true))||xlSheet(wb,false);if(!sh)throw new Error('Excel şablonunda başlık satırı bulunamadı');const ws=sh.w,F=D.firma||{},hr=sh.hr,cols=xlCols(ws,hr);xlLogic(ws,cols,hr+1);xlSt='firma bilgileri';
- const isL=t=>{t=String(t||'').replace(/[:：_\s.]+$/,'').trim();return t.length>0&&t.length<=45&&LBL.some(([k,r])=>r.test(t))};
- const td=new Date(D.date||Date.now()),fd=d=>d.toLocaleDateString('tr'),en=new Date(td);en.setFullYear(td.getFullYear()+[6,4,2][F.th??1]),DT=/\d{1,2}\.\d{1,2}\.\d{4}/;
- for(let r=1;r<hr;r++)ws.getRow(r).eachCell(c=>{const t=cv(c);if(typeof t!='string'||c.isMerged&&c.master&&c.master.address!=c.address)return;
-  if(/geçerlilik\s*tarihi/i.test(t))c.value=t.replace(/(\d{1,2}\.\d{1,2}\.\d{4})\s*([-–])\s*(\d{1,2}\.\d{1,2}\.\d{4})/,`${fd(td)} $2 ${fd(en)}`);else if(/(revizyon|yayın|hazırlanma|düzenleme)\s*tarihi/i.test(t)&&DT.test(t))c.value=t.replace(DT,fd(td))});
- for(let r=1;r<hr;r++)ws.getRow(r).eachCell((c,n)=>{const t=cv(c);if(typeof t!='string'||!isL(t)||DT.test(t))return;const x=lbl(t,F,D.date);
-  for(let k=n+1;k<=n+8;k++){let y=ws.getCell(r,k);if(y.isMerged&&y.master&&y.master.address==c.address)continue;if(y.isMerged&&y.master)y=y.master;if(typeof cv(y)=='string'&&isL(cv(y)))break;y.value=x;break}});
- const rows=D.risk?D.risk.rows.map((r,i)=>cols.map(c=>riskCell(c.k,r,i,D.risk.method,c.t))):D.grid||[],P=hr+1,pc={};
+async function xlFill0(buf,D){xlSt='şablon okuma';const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const sh=(D.risk&&xlSheet(wb,true))||xlSheet(wb,false);if(!sh)throw new Error('Excel şablonunda başlık satırı bulunamadı');const ws=sh.w,F=D.firma||{},hr=sh.hr,cols=xlCols(ws,hr);xlLogic(ws,cols,hr+1);cols.forEach(c=>{if(!c.dup)return;const k=hk(c.t.replace(/#\d+$/,'')),f=ws.getCell(hr+1,c.n).formula;c.kd=typeof f=='string'&&f?(f.includes('*')?'skor':/^(IF|IFS|VLOOKUP|LOOKUP|INDEX)/i.test(f)?'lv':''):(['o','f','s','skor','lv'].includes(k)?k:'')});xlSt='firma bilgileri';
+ xlHead(ws,hr,F,D);
+ const rows=D.risk?D.risk.rows.map((r,i)=>cols.map(c=>riskCell(c.k,r,i,D.risk.method,c.t,c.dup?c.kd:''))):D.grid||[],P=hr+1,pc={};
  cols.forEach(c=>{const x=ws.getCell(P,c.n);pc[c.n]={st:JSON.parse(JSON.stringify(x.style||{})),f:x.formula}});
  xlSt='satır yazma';const last=P+rows.length-1,cfc=new Set();
  (ws.conditionalFormattings||[]).forEach(cf=>{if(typeof cf.ref!='string')return;cf.ref=cf.ref.replace(/([A-Z]+)(\d+):([A-Z]+)(\d+)/g,(m,a,b,c2,d)=>{if(+b>P||+d<P)return m;for(let k=ws.getColumn(a).number;k<=ws.getColumn(c2).number;k++)cfc.add(k);return rows.length?`${a}${b}:${c2}${last}`:m})});
@@ -77,7 +115,7 @@ async function xlFill0(buf,D){xlSt='şablon okuma';const wb=new ExcelJS.Workbook
   if(!ps.printTitlesRow)ps.printTitlesRow=`${hr>1&&hdrLike(ws,hr-1)?hr-1:hr}:${hr}`;
   if(ps.fitToPage&&ps.fitToHeight==1&&rows.length>30)ps.fitToHeight=0;
   if(Array.isArray(ws.rowBreaks))ws.rowBreaks=ws.rowBreaks.filter(b=>b.id<last)}
- xlSt='özet sayfası';if(D.risk){const o=wb.addWorksheet('Özet'),s=summ({rows:D.risk.rows,method:D.risk.method});o.addRow(['Alana göre dağılım','Adet']).font={bold:true};Object.entries(s.alan).forEach(a=>o.addRow(a));o.addRow([]);o.addRow(['Risk seviyesine göre dağılım','Adet']).font={bold:true};Object.entries(s.seviye).forEach(a=>o.addRow(a));o.getColumn(1).width=40}
+ xlSt='özet sayfası';if(D.risk){const old=wb.getWorksheet('Özet');if(old)wb.removeWorksheet(old.id);const o=wb.addWorksheet('Özet'),s=summ({rows:D.risk.rows,method:D.risk.method});o.addRow(['Alana göre dağılım','Adet']).font={bold:true};Object.entries(s.alan).forEach(a=>o.addRow(a));o.addRow([]);o.addRow(['Risk seviyesine göre dağılım','Adet']).font={bold:true};Object.entries(s.seviye).forEach(a=>o.addRow(a));o.getColumn(1).width=40}
  xlSt='kaydetme';wb.calcProperties.fullCalcOnLoad=true;return new Blob([await xlWrite(wb)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
 // Hazır Excel risk şablonu (formüllü): skorlar Excel'de otomatik hesaplanır
 async function mkXlRisk(mt){const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Risk Analizi'),fk=mt=='fk';
@@ -112,6 +150,6 @@ async function xlProbe(buf){const wb=new ExcelJS.Workbook();await wb.xlsx.load(b
 async function dxProbe(buf){const{TBL}=await dxLoad(buf);for(const t of TBL){const trs=wk(t,'tr'),tx=trs.map(r=>wk(r,'tc').map(c=>wq(c,'p').map(ptx).join(' ').trim())),hd=tx[0]||[];if(hd.filter(h=>hk(h)).length>=3)return{sheet:'Word tablosu',sheets:1,rows:tx.length-1,cols:hd.map((h,i)=>({n:i,t:h,k:hk(h),s:tx.slice(1,40).map(r=>r[i]).filter(Boolean).slice(0,3).map(x=>x.slice(0,40))}))}}throw new Error('Word dosyasında risk tablosu bulunamadı.')}
 // Kütüphane dosyasından boş iskelet: başlıklar, biçimler, genişlikler, formüller kalır; veri satırları silinir
 async function xlSkeleton(buf){const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);const cand=wb.worksheets.map(w=>({w,hr:xlHdr(w,true)})).filter(x=>x.hr).sort((a,b)=>b.w.rowCount-a.w.rowCount);if(!cand.length)throw new Error('iskelet çıkarılamadı');
- const{w:ws,hr}=cand[0];cand.slice(1).forEach(x=>wb.removeWorksheet(x.w.id));const cols=xlCols(ws,hr),pr=xlProto(ws,hr,cols);
+ const{w:ws,hr}=cand[0];wb.worksheets.filter(w=>w.id!==ws.id).forEach(w=>wb.removeWorksheet(w.id));const cols=xlCols(ws,hr),pr=xlProto(ws,hr,cols);
  const st={},fm={};cols.forEach(c=>{const x=ws.getCell(pr,c.n);st[c.n]=JSON.parse(JSON.stringify(x.style||{}));fm[c.n]=x.formula});const ht=ws.getRow(pr).height;
  for(let r=hr+1;r<=ws.rowCount;r++){const rw=ws.getRow(r);rw.eachCell({includeEmpty:true},c=>{c.value=null;c.style={}});rw.height=undefined}cols.forEach(c=>{const x=ws.getCell(hr+1,c.n);x.style=st[c.n];if(fm[c.n])x.value={formula:tr1(fm[c.n],pr,hr+1)}});ws.getRow(hr+1).height=ht;return xlWrite(wb)}

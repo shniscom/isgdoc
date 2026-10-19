@@ -1,6 +1,6 @@
 // Çekirdek: durum, depolama (localStorage + IndexedDB), yapay zekâ, hesaplar
 const $=s=>document.querySelector(s),m=$('#m'),e=x=>String(x??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-const TY={risk:['Risk Analizi','y'],acil:['Acil Durum Eylem Planı','y'],cal:['Yıllık Çalışma Planı','y'],egp:['Yıllık Eğitim Planı','y'],deg:['Yıllık Değerlendirme Raporu','y'],
+const TY={rpro:['Risk Değerlendirme Prosedürü','z'],risk:['Risk Analizi','y'],acil:['Acil Durum Eylem Planı','y'],cal:['Yıllık Çalışma Planı','y'],egp:['Yıllık Eğitim Planı','y'],deg:['Yıllık Değerlendirme Raporu','y'],
 at_ct:['Çalışan Temsilcisi Atama Yazısı','a'],at_de:['Destek Elemanı Atama Yazısı','a'],at_bs:['Bilgi Sahibi Çalışan Atama Yazısı','a'],at_iv:['İşveren Vekili Atama Yazısı','a'],at_re:['Risk Değerlendirme Ekibi Atama Yazısı','a'],at_ek:['Acil Durum Ekibi Atama Yazısı','a'],
 eg_or:['Oryantasyon Eğitimi','e'],eg_ts:['Temel İSG Eğitimi','e'],eg_re:['Risk Değerlendirme Ekibi Eğitimi','e'],eg_de:['Destek Elemanı Eğitimi','e'],eg_ct:['Çalışan Temsilcisi Eğitimi','e'],eg_bs:['Bilgi Sahibi Çalışan Eğitimi','e'],eg_iy:['İlk Yardım Eğitimi','e'],eg_yg:['Yangın ve Tahliye Eğitimi','e']};
 const TABS=[['y','Yasal Evrak Hazırla'],['a','Personel Atamaları'],['e','Eğitim Dokümanları'],['k','Kaydedilenler'],['l','Kütüphane'],['d','Doküman Arşivi'],['i','Talimatlar'],['t','Şablonlar'],['s','Ayarlar'],['r','Kullanım Rehberi']];

@@ -26,3 +26,12 @@ Kütüphane yüklemesinde önce "Dosyayı incele" ile sütunlar ve örnek değer
 
 ### Sihirbaz ve etiketler
 Yeni belge oluştururken adım adım sihirbaz çalışır (risk analizi: firma → kapsam → yöntem/şablon → madde sayısı → özet; diğer belgeler: firma → sorular → şablon → özet). İnşaat için aşama/iş kalemi etiketleri (kalıp, demir, iskele, elektrik…) kütüphaneye otomatik atanır; kalem başına benzersiz madde sayısı görünür. Etiketsizler isteğe bağlı yapay zekâyla sınıflanır.
+
+### Risk Değerlendirme Prosedürü şablonu
+Şablonlar sekmesinde "Risk Değerlendirme Prosedürü" türünde örnek Word yüklenir. Risk analizi sonuç ekranındaki "Prosedür iskeleti" seçiminden seçilince prosedür bu iskeletin başlık/biçimi korunarak, firma, yöntem ve risk sonuçlarına göre yeniden yazılır. İskelet yoksa metin iki parça halinde (tam bölümlerle) sıfırdan yazılır.
+
+### Firma bilgisi temizliği
+Şablondan kalan firma unvanı, proje adı, SGK/sicil numarası; Excel başlık bloğunda, Word üst/alt bilgisinde ve metinde seçilen firmayla değiştirilir (firma kaydındaki "Proje / şantiye adı" alanı kullanılır, boşsa temizlenir). Önlem sonrası O/F/Ş, sorumlu, termin, etkilenenler ve açıklama hücreleri boşsa kural tabanlı uzman varsayılanlarıyla doldurulur.
+
+### Plan / liste tipi Excel şablonları (yıllık çalışma, eğitim planı vb.)
+Excel şablonunun yapısı otomatik çözülür: başlık bloğu (etiket altındaki değer hücreleri), başlık satırları (iki seviyeli olabilir), ay sütunları (X işaretleri), bölüm satırları ve dipnotlar. Yapay zekâ satırları bölüm bölüm (parça parça) üretir, iskeletin bölüm/sütun düzenine sadık kalır; çıktı iskeletin biçimiyle (bölüm rengi, X hücre rengi, birleşik hücreler, yazdırma alanı) yazılır. Üretilen satırlar "Şablon alanları" bölümünde düzenlenebilir. Eski yüklenmiş şablonlar ilk kullanımda otomatik çözümlenir.
