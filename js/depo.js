@@ -1,0 +1,60 @@
+// Doküman arşivi ve talimat deposu: önce etiket, sonra belge. Dosyalar IndexedDB'de (meta: 'd', içerik: 'b')
+const DK={ar:{t:'Doküman Arşivi',eg:'Geçici görevlendirme yazısı',ic:'Önce etiketlerinizi oluşturun, sonra belgeleri bu etiketlere yükleyin. Aynı etikete istediğiniz kadar belge eklenebilir.'},
+ ta:{t:'Talimatlar',eg:'İş makinesi kullanım talimatı',ic:'Talimatlarınızı etiketleyerek saklayın, arayıp indirin ya da yapay zekâ ile yenisini üretip depoya kaydedin.'}};
+let DOC=[];const dq={ar:{q:'',l:'',o:'d'},ta:{q:'',l:'',o:'d'}};
+const nz=s=>String(s||'').toLocaleLowerCase('tr').replace(/ç/g,'c').replace(/ğ/g,'g').replace(/ı/g,'i').replace(/ö/g,'o').replace(/ş/g,'s').replace(/ü/g,'u');
+const dAll=()=>tx('readonly',s=>s.getAll(),'d'),dPut=o=>tx('readwrite',s=>s.put(o),'d'),dDelM=id=>tx('readwrite',s=>s.delete(id),'d'),bPut=o=>tx('readwrite',s=>s.put(o),'b'),bGet=id=>tx('readonly',s=>s.get(id),'b'),bDel=id=>tx('readwrite',s=>s.delete(id),'b');
+const dsz=n=>n>1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+const dcnt=(k,l)=>DOC.filter(d=>d.kind==k&&d.et==l).length;
+function depoView(kind){const D=DK[kind],Q=dq[kind],ls=S.et[kind],srt=ls.map((l,i)=>[l,i]).sort((a,b)=>nz(a[0]).localeCompare(nz(b[0])));
+ m.innerHTML=`<h2>${D.t}</h2><div class="card"><p style="font-size:13px;color:var(--m)">${D.ic}</p><h3>1. Etiketler</h3>
+ <div class="g"><label>Yeni etiket<input id="nl" placeholder="Örn: ${D.eg}" onkeydown="if(event.key=='Enter')etAdd('${kind}')"></label></div><button class="b" onclick="etAdd('${kind}')">Etiket ekle</button>
+ <div style="margin-top:8px">${srt.map(([l,i])=>`<span style="display:inline-block;margin:3px 10px 3px 0"><span class="tag" style="cursor:pointer" onclick="dFilt('${kind}',${i})">${e(l)} <b>${dcnt(kind,l)}</b></span><button class="b s" style="padding:2px 8px" onclick="etRen('${kind}',${i})">✎</button><button class="b r" style="padding:2px 8px" onclick="etDel('${kind}',${i})">✕</button></span>`).join('')||'<small style="color:var(--m)">Henüz etiket yok.</small>'}</div></div>
+ <div class="card"><h3>2. Belge yükle</h3>${ls.length?`<div class="g"><label>Etiket<select id="dl">${srt.map(([l])=>`<option>${e(l)}</option>`).join('')}</select></label><label>Dosya(lar) — her türden<input type="file" id="df" multiple></label><label>Not (isteğe bağlı)<input id="dn"></label></div><button class="b" onclick="run(this,()=>dUp('${kind}'))">Yükle</button><div id="pg"></div>`:'<p>Önce en az bir etiket ekleyin.</p>'}</div>
+ ${kind=='ta'?talPanel():''}
+ <div class="card"><h3>${kind=='ta'?'3':'3'}. Ara ve listele</h3><div class="g"><label>Ara (dosya adı, etiket, not)<input id="dq" value="${e(Q.q)}" placeholder="Örn: görevlendirme" oninput="dq['${kind}'].q=this.value;dRes('${kind}')"></label>
+ <label>Etiket<select onchange="dq['${kind}'].l=this.value;dRes('${kind}')"><option value="">Tümü</option>${srt.map(([l])=>`<option value="${e(l)}" ${Q.l==l?'selected':''}>${e(l)} (${dcnt(kind,l)})</option>`).join('')}</select></label>
+ <label>Sıralama<select onchange="dq['${kind}'].o=this.value;dRes('${kind}')"><option value="d" ${Q.o=='d'?'selected':''}>Yükleme tarihi: yeniden eskiye</option><option value="a" ${Q.o=='a'?'selected':''}>Yükleme tarihi: eskiden yeniye</option></select></label></div>
+ <div id="dres"></div><button class="b s" onclick="run(this,()=>dZip('${kind}'))">Tümünü ZIP olarak indir (yedek)</button><p id="qt" style="font-size:12px;color:var(--m)"></p></div>`;dRes(kind);
+ if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(r=>{const q=$('#qt');if(q)q.textContent=`Tarayıcı depolama kullanımı: ${dsz(r.usage||0)} / ${dsz(r.quota||0)}`})}
+function dRes(kind){const Q=dq[kind],tk=nz(Q.q).split(/\s+/).filter(Boolean),dir=Q.o=='a'?1:-1,ls=S.et[kind];
+ const L=DOC.filter(d=>d.kind==kind&&(!Q.l||d.et==Q.l)&&tk.every(t=>nz(d.name+' '+d.et+' '+(d.not||'')).includes(t))),g={};L.forEach(d=>(g[d.et]=g[d.et]||[]).push(d));
+ const labs=Object.keys(g).sort((a,b)=>nz(a).localeCompare(nz(b))),opt=`<option value="">Etiketi değiştir…</option>${ls.map(l=>`<option>${e(l)}</option>`).join('')}`;
+ $('#dres').innerHTML=(labs.map(l=>`<h4>${e(l)} <span class="tag">${g[l].length} belge</span></h4><div class="w"><table><tr><th>Dosya<th>Yükleme tarihi<th>Boyut<th>Not<th></tr>${g[l].sort((a,b)=>dir*a.date.localeCompare(b.date)).map(d=>`<tr><td>${e(d.name)}<td>${new Date(d.date).toLocaleString('tr')}<td>${dsz(d.size)}<td>${e(d.not)}<td style="white-space:nowrap"><button class="b s" onclick="run(this,()=>dDl('${d.id}'))">İndir</button><button class="b s" onclick="dOpen('${d.id}')">Aç</button><select style="width:auto" onchange="dMove('${d.id}',this.value)">${opt}</select><button class="b s" onclick="dRn('${d.id}')">Adı değiştir</button><button class="b r" onclick="dRm('${d.id}')">Sil</button></tr>`).join('')}</table></div>`).join('')||'<p>Sonuç yok.</p>')+`<p style="font-size:13px"><b>${L.length}</b> belge listelendi.</p>`}
+function dFilt(kind,i){dq[kind].l=S.et[kind][i];depoView(kind)}
+function etAdd(kind){const v=($('#nl').value||'').trim();if(!v)return;if(S.et[kind].some(x=>nz(x)==nz(v)))return alert('Bu etiket zaten var.');S.et[kind].push(v);sv();depoView(kind)}
+async function etRen(kind,i){const o=S.et[kind][i],n=(prompt('Yeni etiket adı',o)||'').trim();if(!n||n==o)return;if(S.et[kind].some((x,j)=>j!=i&&nz(x)==nz(n)))return alert('Bu etiket zaten var.');S.et[kind][i]=n;for(const d of DOC.filter(d=>d.kind==kind&&d.et==o)){d.et=n;await dPut(d)}if(dq[kind].l==o)dq[kind].l=n;sv();depoView(kind)}
+function etDel(kind,i){const l=S.et[kind][i],n=dcnt(kind,l);if(n)return alert(`"${l}" etiketinde ${n} belge var. Önce belgeleri başka etikete taşıyın veya silin.`);if(!confirm(`"${l}" etiketi silinsin mi?`))return;S.et[kind].splice(i,1);if(dq[kind].l==l)dq[kind].l='';sv();depoView(kind)}
+async function dUp(kind){const fs=[...$('#df').files];if(!fs.length)return alert('Dosya seçin.');await dAdd(kind,$('#dl').value,fs,($('#dn').value||'').trim());depoView(kind)}
+async function dAdd(kind,label,files,note){try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(x){}
+ for(let i=0;i<files.length;i++){const f=files[i];pg(Math.round(i/files.length*100),`${f.name} yükleniyor`);
+  if(DOC.some(d=>d.kind==kind&&d.et==label&&d.name==f.name&&d.size==f.size)&&!confirm(`"${f.name}" bu etikette zaten var. Yine de eklensin mi?`))continue;
+  const id=uid()+i,meta={id,kind,et:label,name:f.name,type:f.type||'',size:f.size,date:new Date().toISOString(),not:note||''};await bPut({id,buf:await f.arrayBuffer()});await dPut(meta);DOC.push(meta)}pg(100,'tamamlandı')}
+async function dMove(id,v){if(!v)return;const d=DOC.find(x=>x.id==id);d.et=v;await dPut(d);depoView(d.kind)}
+async function dRn(id){const d=DOC.find(x=>x.id==id),n=(prompt('Yeni dosya adı',d.name)||'').trim();if(!n)return;d.name=n;await dPut(d);dRes(d.kind)}
+async function dRm(id){const d=DOC.find(x=>x.id==id);if(!confirm(`"${d.name}" silinsin mi?`))return;await dDelM(id);await bDel(id);DOC=DOC.filter(x=>x.id!=id);depoView(d.kind)}
+const dBlob=async d=>new Blob([(await bGet(d.id)).buf],{type:d.type||'application/octet-stream'});
+async function dDl(id){const d=DOC.find(x=>x.id==id);await dlBlob(await dBlob(d),d.name)}
+async function dOpen(id){const d=DOC.find(x=>x.id==id);if(!/^(image\/|application\/pdf|text\/)/.test(d.type))return run({textContent:''},()=>dDl(id));window.open(URL.createObjectURL(await dBlob(d)),'_blank')}
+async function dZip(kind){const L=DOC.filter(d=>d.kind==kind);if(!L.length)return alert('İndirilecek belge yok.');const z=new JSZip(),used={};
+ for(const d of L){let p=`${d.et}/${d.name}`;if(used[p]){const x=d.name.lastIndexOf('.');p=`${d.et}/${x>0?d.name.slice(0,x):d.name} (${used[p]+1})${x>0?d.name.slice(x):''}`}used[`${d.et}/${d.name}`]=(used[`${d.et}/${d.name}`]||0)+1;z.file(p,new Uint8Array((await bGet(d.id)).buf))}
+ await dlBlob(await z.generateAsync({type:'blob'}),`${DK[kind].t}-${new Date().toISOString().slice(0,10)}.zip`)}
+// ---------- Talimat üretimi ----------
+const TALK=['İş makinesi kullanım talimatı','Ekskavatör kullanım talimatı','Forklift kullanım talimatı','Vinç kullanım talimatı','Kaynak makinesi kullanım talimatı','Elektrikli el aletleri kullanım talimatı','Kompresör kullanım talimatı','Jeneratör kullanım talimatı','Merdiven kullanım talimatı','İskele kurulum ve kullanım talimatı','Kimyasal madde kullanım talimatı','KKD kullanım talimatı','Yangın söndürücü kullanım talimatı','Elle taşıma talimatı'];
+let talD=null;
+function talPanel(){return `<div class="card"><h3>Yapay zekâ ile talimat üret</h3><p style="font-size:13px;color:var(--m)">Konuyu yazdıkça depoda benzer talimat olup olmadığı gösterilir; varsa yeniden üretmeden doğrudan indirebilirsiniz.</p>
+ <div class="g"><label>Talimat konusu<input id="tk" list="tkl" placeholder="Örn: ekskavatör kullanım talimatı" oninput="talMatch()"><datalist id="tkl">${TALK.map(x=>`<option>${x}`).join('')}</datalist></label>
+ <label>Firma (isteğe bağlı)<select id="tf2"><option value="">—</option>${S.c.map((f,i)=>`<option value="${i}">${e(f.ad)}</option>`).join('')}</select></label>
+ <label>İş kolu / ortam<input id="ti" placeholder="Örn: İnşaat şantiyesi"></label><label>Ek bilgi<input id="te" placeholder="Makine modeli, özel riskler…"></label></div><div id="tm"></div>
+ <button class="b" onclick="run(this,talGen)">Talimatı üret</button><div id="td"></div></div>`}
+function talMatch(){const t=nz($('#tk').value).split(/\s+/).filter(x=>x.length>2),L=t.length?DOC.filter(d=>d.kind=='ta'&&t.some(x=>nz(d.name+' '+d.et).includes(x))).slice(0,6):[];
+ $('#tm').innerHTML=L.length?`<div class="lg">Depoda benzer ${L.length} talimat var: ${L.map(d=>`<a href="#" onclick="dDl('${d.id}');return false">${e(d.name)}</a> <small>(${e(d.et)})</small>`).join(' · ')}</div>`:''}
+async function talGen(){const k=$('#tk').value.trim();if(!k)return alert('Talimat konusunu yazın.');const v=$('#tf2').value,f=v===''?null:S.c[+v];
+ const x=await ai(`"${k}" için iş güvenliği talimatı hazırla.${f?` Firma: ${f.ad}.`:''} Ortam/iş kolu: ${$('#ti').value||'belirtilmedi'}. Ek bilgi: ${$('#te').value||'yok'}.\nBölümler: 1. Amaç 2. Kapsam 3. Dayanak (ilgili mevzuat) 4. Sorumluluklar 5. Kullanım öncesi kontroller 6. Güvenli kullanım/çalışma kuralları 7. Yasaklar 8. Kişisel koruyucu donanımlar 9. Bakım ve arıza durumunda yapılacaklar 10. Acil durumlarda yapılacaklar.\nSahada okunabilir olsun: kısa, her madde tek cümle. Biçim: "# " başlık, "- " madde. Tablo kullanma.`,4000);
+ talD={konu:k,text:x,firma:f};talEd()}
+function talEd(){$('#td').innerHTML=`<h4>Taslak (düzenlenebilir)</h4><textarea rows="18" oninput="talD.text=this.value">${e(talD.text)}</textarea><div class="g"><label>Kaydedilecek etiket<select id="tel">${S.et.ta.map(l=>`<option ${nz(l)==nz(talD.konu)?'selected':''}>${e(l)}</option>`).join('')}<option value="__new">+ "${e(talD.konu)}" adlı yeni etiket oluştur</option></select></label></div><button class="b" onclick="run(this,talSave)">Depoya kaydet</button><button class="b s" onclick="run(this,talDl)">Word indir</button>`}
+async function talBlob(d){const x=X(),C=x.AlignmentType.CENTER,f=d.firma||{};return x.Packer.toBlob(new x.Document({sections:[{children:[P(f.ad||'',{a:C,b:1,s:26}),P(d.konu.toUpperCase(),{a:C,b:1,s:30}),TB([['Doküman No','Yayın Tarihi','Revizyon No','Revizyon Tarihi'],['',new Date().toLocaleDateString('tr'),'00','']]),P(''),...bl(d.text),P('TEBELLÜĞ LİSTESİ',{b:1,sp:300}),TB([['Sıra','Adı Soyadı','Görevi','Tarih','İmza'],...Array.from({length:10},(_,i)=>[i+1,'','','',''])])]}]}))}
+const talName=()=>`${talD.konu}${talD.firma?' - '+talD.firma.ad:''}.docx`;
+async function talDl(){await dlBlob(await talBlob(talD),talName())}
+async function talSave(){let l=$('#tel').value;if(l=='__new'){l=talD.konu;if(!S.et.ta.some(x=>nz(x)==nz(l))){S.et.ta.push(l);sv()}else l=S.et.ta.find(x=>nz(x)==nz(l))}
+ const b=await talBlob(talD),ab=await b.arrayBuffer();await dAdd('ta',l,[{name:talName(),type:b.type,size:b.size,arrayBuffer:async()=>ab}],'Yapay zekâ ile üretildi');alert('Talimat depoya kaydedildi.');depoView('ta')}
